@@ -2,9 +2,9 @@
 const AppState = {
     apiKey: null,
     isPaused: false,
-    files: [], // { id, name, data, status: 'pending'|'processing'|'done'|'error' }
+    files: [],
     config: {
-        sourceLanguage: 'ja',        // Mặc định từ Japanese như yêu cầu gốc
+        sourceLanguage: 'ja',
         targetLanguage: 'vi',
         safeMode: 'balanced',
         batchSize: 10,
@@ -51,10 +51,8 @@ const AppState = {
         const el = document.getElementById('status-text');
         el.textContent = text;
         el.className = 'status';
-        if (type === 'success') el.style.color = '#10b981';
-        else if (type === 'error') el.style.color = '#ef4444';
-        else if (type === 'processing') el.style.color = '#f59e0b';
-        else el.style.color = '#94a3b8';
+        const colors = { success: '#10b981', error: '#ef4444', processing: '#f59e0b', info: '#94a3b8' };
+        el.style.color = colors[type] || colors.info;
     },
 
     updateStartButton() {
@@ -81,12 +79,9 @@ function showToast(message, type = 'info') {
     container.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
 
-    if ('vibrate' in navigator) {
-        navigator.vibrate([50, 50, 50]);
-    }
+    if ('vibrate' in navigator) navigator.vibrate([50, 50, 50]);
 }
 
-// Hàm escape HTML để an toàn với tên file có ký tự đặc biệt
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
@@ -126,7 +121,7 @@ function handleFiles(source) {
     });
 }
 
-// === FIX CHÍNH: Render file item ĐÚNG CÚ PHÁP ===
+// FIX LỖI RENDER HOÀN TOÀN
 function renderFileItem(fileObj) {
     const list = document.getElementById('file-list');
     const item = document.createElement('div');
@@ -161,8 +156,10 @@ function updateFileStatus(id, status) {
     if (item) {
         item.className = `file-item ${status}`;
         const statusEl = item.querySelector('.status');
-        statusEl.className = `status status-${status}`;
-        statusEl.textContent = getStatusLabel(status);
+        if (statusEl) {
+            statusEl.className = `status status-${status}`;
+            statusEl.textContent = getStatusLabel(status);
+        }
     }
 }
 
@@ -174,7 +171,7 @@ function removeFile(id) {
     AppState.updateStats();
 }
 
-// ===== Translation Process =====
+// ===== Translation =====
 async function startTranslation() {
     if (!AppState.apiKey) {
         showToast('Vui lòng lưu API Key trước', 'error');
@@ -246,12 +243,12 @@ function togglePause() {
         btn.innerHTML = '<i class="fas fa-pause"></i> Tạm Dừng';
         btn.classList.remove('btn-primary');
         btn.classList.add('btn-pause');
-        startTranslation(); // Resume
+        startTranslation();
     }
 }
 
 function clearAll() {
-    if (!confirm('Bạn có chắc muốn xóa tất cả file đã tải?')) return;
+    if (!confirm('Bạn có chắc muốn xóa tất cả file?')) return;
 
     AppState.files = [];
     AppState.stats.textsTranslated = 0;
@@ -269,6 +266,24 @@ function clearAll() {
 // ===== DOM Ready =====
 document.addEventListener('DOMContentLoaded', () => {
     AppState.load();
+
+    // FIX LỖI Logger is not defined: Định nghĩa Logger fallback nếu autotrans.js chưa load
+    if (typeof Logger === 'undefined') {
+        window.Logger = {
+            info: (msg) => console.log('[INFO]', msg),
+            warning: (msg) => console.warn('[WARNING]', msg),
+            error: (msg) => console.error('[ERROR]', msg),
+            success: (msg) => console.log('[SUCCESS]', msg)
+        };
+    }
+
+    // LivePreview fallback (nếu autotrans.js gọi trước khi script.js load)
+    if (typeof LivePreview === 'undefined') {
+        window.LivePreview = {
+            addTranslation: () => {},
+            showBatchProgress: () => {}
+        };
+    }
 
     // API Key
     document.getElementById('save-key').addEventListener('click', () => {
@@ -294,7 +309,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Config update
+    // Config
     document.querySelectorAll('select, input[type="checkbox"], input[type="number"]').forEach(el => {
         el.addEventListener('change', () => {
             const id = el.id;
@@ -352,7 +367,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('pause-translation').addEventListener('click', togglePause);
     document.getElementById('clear-all').addEventListener('click', clearAll);
 
-    // PWA Install
+    // PWA
     let deferredPrompt;
     window.addEventListener('beforeinstallprompt', e => {
         e.preventDefault();
@@ -367,12 +382,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Service Worker
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('sw.js').catch(() => {});
     }
 
-    // Hook realtime stats từ autotrans.js
+    // Hook realtime stats
     const statsProxy = new Proxy(AppState.stats, {
         set(target, prop, value) {
             target[prop] = value;
