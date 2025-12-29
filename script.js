@@ -14,8 +14,7 @@ const AppState = {
         smartFiltering: true,
         contextAware: true,
         qualityCheck: true,
-        preserveFormatting: true,
-        skipTranslated: true
+        preserveFormatting: true
     },
     stats: {
         textsTranslated: 0,
@@ -56,7 +55,8 @@ const AppState = {
 
     updateStartButton() {
         const btn = document.getElementById('start-translation');
-        btn.disabled = !this.apiKey || this.files.length === 0 || this.files.some(f => f.status === 'processing');
+        const hasProcessing = this.files.some(f => f.status === 'processing');
+        btn.disabled = !this.apiKey || this.files.length === 0 || hasProcessing;
     }
 };
 
@@ -72,7 +72,6 @@ function showToast(message, type = 'info') {
     container.appendChild(toast);
     setTimeout(() => toast.remove(), 3500);
 
-    // Mobile vibration
     if ('vibrate' in navigator) {
         navigator.vibrate([50, 50, 50]);
     }
@@ -138,13 +137,13 @@ function renderFileItem(fileObj) {
 }
 
 function getStatusText(status) {
-    switch(status) {
-        case 'pending': return 'Chờ';
-        case 'processing': return 'Đang dịch';
-        case 'done': return 'Hoàn thành';
-        case 'error': return 'Lỗi';
-        default: return 'Chờ';
-    }
+    const texts = {
+        pending: 'Chờ',
+        processing: 'Đang dịch',
+        done: 'Hoàn thành',
+        error: 'Lỗi'
+    };
+    return texts[status] || 'Chờ';
 }
 
 function updateFileStatus(id, status) {
@@ -180,7 +179,7 @@ async function startTranslation() {
     AppState.setStatus('Đang khởi động...', 'processing');
 
     for (const file of AppState.files) {
-        if (file.status === 'processing' || file.status === 'done') continue;
+        if (file.status !== 'pending') continue;
 
         updateFileStatus(file.id, 'processing');
         AppState.setStatus(`Đang dịch: ${file.name}`, 'processing');
@@ -192,7 +191,6 @@ async function startTranslation() {
                 AppState.config
             );
 
-            // Auto download
             downloadFile(file.name, translatedData);
 
             updateFileStatus(file.id, 'done');
@@ -204,20 +202,14 @@ async function startTranslation() {
             showToast(`❌ Lỗi dịch ${file.name}: ${err.message}`, 'error');
         }
 
-        // Check pause
-        while (AppState.isPaused) {
-            AppState.setStatus('Đã tạm dừng – nhấn Tiếp tục để chạy lại', 'paused');
+        while (AppState.isPaused && !pauseBtn.disabled) {
+            AppState.setStatus('Đã tạm dừng', 'paused');
             await new Promise(r => setTimeout(r, 500));
         }
     }
 
-    // Final state
-    const allDone = AppState.files.every(f => f.status === 'done' || f.status === 'error');
-    if (allDone) {
-        AppState.setStatus('Hoàn thành toàn bộ!', 'success');
-        showToast('🎉 Tất cả file đã được xử lý xong!', 'success');
-    }
-
+    AppState.setStatus('Hoàn thành toàn bộ!', 'success');
+    showToast('🎉 Tất cả file đã xử lý xong!', 'success');
     startBtn.disabled = false;
     pauseBtn.disabled = true;
     AppState.updateStartButton();
@@ -255,7 +247,8 @@ function clearAll() {
     AppState.stats.textsTranslated = 0;
     AppState.stats.estimatedCost = 0;
     document.getElementById('file-list').innerHTML = '';
-    document.querySelector('#live-preview .placeholder')?.style.display = 'block';
+    const placeholder = document.querySelector('#live-preview .placeholder');
+    if (placeholder) placeholder.style.display = 'block';
     AppState.updateStats();
     AppState.updateProgress(0);
     AppState.setStatus('Sẵn sàng', 'info');
@@ -291,21 +284,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Config changes
-    const configElements = [
-        'source-lang', 'target-lang', 'safe-mode', 'batch-size',
-        'translate-dialogue', 'translate-names', 'translate-descriptions',
-        'smart-filtering', 'context-aware', 'quality-check', 'preserve-formatting'
-    ];
-    configElements.forEach(id => {
+    // Config
+    ['source-lang', 'target-lang', 'safe-mode', 'batch-size',
+     'translate-dialogue', 'translate-names', 'translate-descriptions',
+     'smart-filtering', 'context-aware', 'quality-check', 'preserve-formatting'].forEach(id => {
         const el = document.getElementById(id);
-        if (el) {
-            el.addEventListener('change', () => {
-                AppState.config[id.replace(/-/g, '_').replace('translate_', 'translate')] = 
-                    el.type === 'checkbox' ? el.checked : (el.type === 'number' ? parseInt(el.value) : el.value);
-            });
-        }
+        if (el) el.addEventListener('change', updateConfigFromUI);
     });
+
+    function updateConfigFromUI() {
+        AppState.config.sourceLanguage = document.getElementById('source-lang').value;
+        AppState.config.targetLanguage = document.getElementById('target-lang').value;
+        AppState.config.safeMode = document.getElementById('safe-mode').value;
+        AppState.config.batchSize = parseInt(document.getElementById('batch-size').value) || 10;
+        AppState.config.translateDialogue = document.getElementById('translate-dialogue').checked;
+        AppState.config.translateNames = document.getElementById('translate-names').checked;
+        AppState.config.translateDescriptions = document.getElementById('translate-descriptions').checked;
+        AppState.config.smartFiltering = document.getElementById('smart-filtering').checked;
+        AppState.config.contextAware = document.getElementById('context-aware').checked;
+        AppState.config.qualityCheck = document.getElementById('quality-check').checked;
+        AppState.config.preserveFormatting = document.getElementById('preserve-formatting').checked;
+    }
 
     // File upload
     document.getElementById('select-files').addEventListener('click', () => 
@@ -313,31 +312,30 @@ document.addEventListener('DOMContentLoaded', () => {
     );
     document.getElementById('file-input').addEventListener('change', e => handleFiles(e.target.files));
 
-    // Drag & Drop toàn màn hình + drop zone
+    // Drag & Drop
     const overlay = document.getElementById('drag-overlay');
     const dropZone = document.getElementById('drop-zone');
 
-    ['dragenter', 'dragover'].forEach(event => {
-        document.body.addEventListener(event, e => {
-            e.preventDefault();
-            if (Array.from(e.dataTransfer.types).includes('Files')) {
-                overlay.classList.add('active');
-                dropZone.classList.add('dragover');
-            }
-        });
+    document.body.addEventListener('dragover', e => {
+        e.preventDefault();
+        if ([...e.dataTransfer.types].includes('Files')) {
+            overlay.classList.add('active');
+            dropZone.classList.add('dragover');
+        }
     });
 
-    ['dragleave', 'drop'].forEach(event => {
-        document.body.addEventListener(event, e => {
-            e.preventDefault();
-            if (event === 'drop') {
-                handleFiles(e);
-            }
-            if (!document.body.contains(e.relatedTarget)) {
-                overlay.classList.remove('active');
-                dropZone.classList.remove('dragover');
-            }
-        });
+    document.body.addEventListener('dragleave', e => {
+        if (!e.relatedTarget) {
+            overlay.classList.remove('active');
+            dropZone.classList.remove('dragover');
+        }
+    });
+
+    document.body.addEventListener('drop', e => {
+        e.preventDefault();
+        overlay.classList.remove('active');
+        dropZone.classList.remove('dragover');
+        handleFiles(e);
     });
 
     dropZone.addEventListener('drop', e => {
@@ -351,7 +349,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('pause-translation').addEventListener('click', togglePause);
     document.getElementById('clear-all').addEventListener('click', clearAll);
 
-    // PWA Install
+    // PWA
     let deferredPrompt;
     window.addEventListener('beforeinstallprompt', e => {
         e.preventDefault();
@@ -362,29 +360,31 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('install-btn').addEventListener('click', () => {
         if (deferredPrompt) {
             deferredPrompt.prompt();
-            deferredPrompt.userChoice.then(choice => {
-                if (choice.outcome === 'accepted') {
-                    showToast('Ứng dụng đã được cài đặt!', 'success');
-                }
-                deferredPrompt = null;
-            });
+            deferredPrompt.userChoice.then(() => deferredPrompt = null);
         }
     });
 
-    // Service Worker
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('sw.js').catch(console.error);
     }
-});
 
-// Hook vào autotrans.js để cập nhật stats realtime
-if (typeof AppState !== 'undefined') {
-    const originalAdd = AppState.stats.estimatedCost += 0; // dummy
-    Object.defineProperty(AppState.stats, 'estimatedCost', {
-        get: () => AppState.stats._estimatedCost || 0,
+    // Hook để cập nhật cost realtime từ autotrans.js
+    const stats = AppState.stats;
+    Object.defineProperty(stats, 'estimatedCost', {
+        configurable: true,
+        get: () => stats._estimatedCost || 0,
         set: (val) => {
-            AppState.stats._estimatedCost = val;
+            stats._estimatedCost = val;
             AppState.updateStats();
         }
     });
-}
+
+    Object.defineProperty(stats, 'textsTranslated', {
+        configurable: true,
+        get: () => stats._textsTranslated || 0,
+        set: (val) => {
+            stats._textsTranslated = val;
+            AppState.updateStats();
+        }
+    });
+});
