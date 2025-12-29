@@ -1,25 +1,27 @@
 {
   "name": "RPG Maker AI Translator ULTIMATE",
-  "short_name": "RPG Translator v4",
-  "description": "Công cụ dịch tự động RPG Maker mạnh mẽ nhất với bảo vệ plugin thông minh, live preview thời gian thực và giao diện cosmic tuyệt đẹp.",
+  "short_name": "RPG Translator v5",
+  "description": "Công cụ dịch tự động RPG Maker mạnh mẽ nhất thế giới với bảo vệ plugin thông minh, live preview thời gian thực và giao diện cosmic siêu đẹp.",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#0f172a",
+  "background_color": "#0a0e1a",
   "theme_color": "#00ffea",
-  "orientation": "portrait-primary",
-  "categories": ["productivity", "utilities", "games"],
+  "orientation": "any",
+  "categories": ["productivity", "utilities", "games", "education"],
+  "lang": "vi",
+  "dir": "ltr",
   "icons": [
     {
       "src": "icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "icon-192-maskable.png",
@@ -36,18 +38,27 @@
   ],
   "screenshots": [
     {
-      "src": "screenshot-desktop.png",
+      "src": "screenshot-desktop-wide.png",
       "sizes": "1920x1080",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "Giao diện desktop với live preview"
+      "label": "Giao diện desktop với live preview và grid thông minh"
     },
     {
       "src": "screenshot-mobile.png",
       "sizes": "1080x1920",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Giao diện mobile tối ưu"
+      "label": "Giao diện mobile tối ưu, dễ sử dụng bằng một tay"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Bắt đầu dịch mới",
+      "short_name": "Dịch mới",
+      "description": "Mở ứng dụng và bắt đầu một phiên dịch mới",
+      "url": "./",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     }
   ]
 }
