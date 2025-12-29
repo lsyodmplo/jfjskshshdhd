@@ -1,314 +1,122 @@
-// RPG Maker AI Translator Pro - Service Worker v3.0.0
+// sw.js - Service Worker cho RPG Maker AI Translator ULTIMATE v4.0
 
-const CACHE_NAME = 'rpg-translator-v3.0.0';
-const STATIC_CACHE = 'rpg-translator-static-v3.0.0';
+const CACHE_NAME = 'rpg-translator-ultimate-v4.0';
+const VERSION = 'v4.0.0'; // Thay đổi khi cập nhật lớn
+const CACHE_KEY = `\( {CACHE_NAME}- \){VERSION}`;
 
-// Files to cache for offline functionality
-const STATIC_FILES = [
-    '/',
-    '/index.html',
-    '/style.css',
-    '/script.js',
-    '/autotrans.js',
-    '/manifest.json',
-    'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css'
+const ASSETS_TO_CACHE = [
+    './',
+    'index.html',
+    'style.css',
+    'script.js',
+    'autotrans.js',
+    'manifest.json',
+    // Fonts từ Google (cache để offline)
+    'https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Inter:wght@300;400;500;600&display=swap',
+    'https://kit.fontawesome.com/8f2b3d7e9a.js',
+    // tsParticles CDN
+    'https://cdn.jsdelivr.net/npm/tsparticle@2.12.0/tsparticle.bundle.min.js',
+    // Fallback icon nếu chưa có icon thực tế
+    'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌟</text></svg>'
 ];
 
-// Install event - cache static files
-self.addEventListener('install', (event) => {
-    console.log('Service Worker: Installing...');
-    
+// INSTALL - Cache tất cả tài nguyên cần thiết
+self.addEventListener('install', event => {
+    console.log('[SW] Installing Service Worker...');
     event.waitUntil(
-        caches.open(STATIC_CACHE)
-            .then((cache) => {
-                console.log('Service Worker: Caching static files');
-                return cache.addAll(STATIC_FILES);
+        caches.open(CACHE_KEY)
+            .then(cache => {
+                console.log('[SW] Caching app shell');
+                return cache.addAll(ASSETS_TO_CACHE);
             })
             .then(() => {
-                console.log('Service Worker: Static files cached');
+                console.log('[SW] Cache completed');
                 return self.skipWaiting();
             })
-            .catch((error) => {
-                console.error('Service Worker: Cache failed', error);
+            .catch(err => {
+                console.error('[SW] Cache failed:', err);
             })
     );
 });
 
-// Activate event - clean up old caches
-self.addEventListener('activate', (event) => {
-    console.log('Service Worker: Activating...');
-    
+// ACTIVATE - Dọn dẹp cache cũ khi có version mới
+self.addEventListener('activate', event => {
+    console.log('[SW] Activating new Service Worker...');
     event.waitUntil(
-        caches.keys()
-            .then((cacheNames) => {
-                return Promise.all(
-                    cacheNames.map((cacheName) => {
-                        if (cacheName !== CACHE_NAME && cacheName !== STATIC_CACHE) {
-                            console.log('Service Worker: Deleting old cache', cacheName);
-                            return caches.delete(cacheName);
+        caches.keys().then(cacheNames => {
+            return Promise.all(
+                cacheNames.map(cacheName => {
+                    if (cacheName !== CACHE_KEY && cacheName.startsWith(CACHE_NAME)) {
+                        console.log('[SW] Deleting old cache:', cacheName);
+                        return caches.delete(cacheName);
+                    }
+                })
+            );
+        })
+        .then(() => {
+            console.log('[SW] Claiming clients');
+            return self.clients.claim();
+        })
+    );
+});
+
+// FETCH - Chiến lược Cache First, then Network (với fallback offline)
+self.addEventListener('fetch', event => {
+    // Chỉ xử lý các request GET và cùng origin (tránh lỗi CORS với API)
+    if (event.request.method !== 'GET') return;
+    
+    // Bỏ qua các request đến DeepSeek API (không cache key hay response)
+    if (event.request.url.includes('api.deepseek.com')) {
+        return fetch(event.request);
+    }
+
+    event.respondWith(
+        caches.match(event.request)
+            .then(cachedResponse => {
+                // Nếu có trong cache → trả về ngay (nhanh)
+                if (cachedResponse) {
+                    // Đồng thời update cache ở background nếu cần
+                    event.waitUntil(updateCache(event.request));
+                    return cachedResponse;
+                }
+
+                // Nếu không có → fetch từ network
+                return fetch(event.request)
+                    .then(networkResponse => {
+                        // Cache response mới (nếu hợp lệ)
+                        if (networkResponse && networkResponse.status === 200) {
+                            const responseToCache = networkResponse.clone();
+                            event.waitUntil(
+                                caches.open(CACHE_KEY)
+                                    .then(cache => cache.put(event.request, responseToCache))
+                            );
                         }
+                        return networkResponse;
                     })
-                );
-            })
-            .then(() => {
-                console.log('Service Worker: Activated');
-                return self.clients.claim();
+                    .catch(() => {
+                        // Nếu offline và không có cache → fallback page (tùy chọn sau này)
+                        return caches.match('index.html');
+                    });
             })
     );
 });
 
-// Fetch event - serve from cache when offline
-self.addEventListener('fetch', (event) => {
-    const { request } = event;
-    const url = new URL(request.url);
-    
-    // Skip non-GET requests
-    if (request.method !== 'GET') {
-        return;
-    }
-    
-    // Skip API calls (let them fail gracefully)
-    if (url.hostname === 'api.deepseek.com') {
-        return;
-    }
-    
-    // Handle static files
-    if (STATIC_FILES.some(file => request.url.includes(file.replace('/', '')))) {
-        event.respondWith(
-            caches.match(request)
-                .then((response) => {
-                    if (response) {
-                        return response;
-                    }
-                    
-                    return fetch(request)
-                        .then((response) => {
-                            // Don't cache if not successful
-                            if (!response || response.status !== 200 || response.type !== 'basic') {
-                                return response;
-                            }
-                            
-                            // Clone response for cache
-                            const responseToCache = response.clone();
-                            
-                            caches.open(STATIC_CACHE)
-                                .then((cache) => {
-                                    cache.put(request, responseToCache);
-                                });
-                            
-                            return response;
-                        });
-                })
-                .catch(() => {
-                    // Return offline page for navigation requests
-                    if (request.mode === 'navigate') {
-                        return caches.match('/index.html');
-                    }
-                })
-        );
-    }
-    
-    // Handle other requests with network-first strategy
-    else {
-        event.respondWith(
-            fetch(request)
-                .then((response) => {
-                    // Don't cache API responses or non-successful responses
-                    if (!response || response.status !== 200 || response.type !== 'basic') {
-                        return response;
-                    }
-                    
-                    const responseToCache = response.clone();
-                    
-                    caches.open(CACHE_NAME)
-                        .then((cache) => {
-                            cache.put(request, responseToCache);
-                        });
-                    
-                    return response;
-                })
-                .catch(() => {
-                    // Try to serve from cache
-                    return caches.match(request);
-                })
-        );
-    }
-});
-
-// Background sync for offline translation queue
-self.addEventListener('sync', (event) => {
-    if (event.tag === 'translation-queue') {
-        event.waitUntil(processTranslationQueue());
-    }
-});
-
-// Handle translation queue when back online
-async function processTranslationQueue() {
+// Helper: Update cache trong background
+async function updateCache(request) {
     try {
-        // Get queued translations from IndexedDB
-        const queue = await getTranslationQueue();
-        
-        if (queue.length > 0) {
-            console.log('Service Worker: Processing translation queue', queue.length);
-            
-            // Notify main app about queue processing
-            const clients = await self.clients.matchAll();
-            clients.forEach(client => {
-                client.postMessage({
-                    type: 'QUEUE_PROCESSING',
-                    count: queue.length
-                });
-            });
+        const response = await fetch(request);
+        if (response && response.status === 200) {
+            const cache = await caches.open(CACHE_KEY);
+            await cache.put(request, response);
         }
-    } catch (error) {
-        console.error('Service Worker: Queue processing failed', error);
+    } catch (err) {
+        // Silent fail - không ảnh hưởng user
     }
 }
 
-// Mock function for translation queue (would use IndexedDB in real implementation)
-async function getTranslationQueue() {
-    // In a real implementation, this would read from IndexedDB
-    return [];
-}
-
-// Handle push notifications (for future features)
-self.addEventListener('push', (event) => {
-    if (event.data) {
-        const data = event.data.json();
-        
-        const options = {
-            body: data.body,
-            icon: '/icon-192.png',
-            badge: '/badge-72.png',
-            vibrate: [100, 50, 100],
-            data: data.data,
-            actions: [
-                {
-                    action: 'open',
-                    title: 'Mở ứng dụng',
-                    icon: '/icon-open.png'
-                },
-                {
-                    action: 'close',
-                    title: 'Đóng',
-                    icon: '/icon-close.png'
-                }
-            ]
-        };
-        
-        event.waitUntil(
-            self.registration.showNotification(data.title, options)
-        );
-    }
-});
-
-// Handle notification clicks
-self.addEventListener('notificationclick', (event) => {
-    event.notification.close();
-    
-    if (event.action === 'open') {
-        event.waitUntil(
-            clients.openWindow('/')
-        );
-    }
-});
-
-// Handle messages from main app
-self.addEventListener('message', (event) => {
-    const { type, data } = event.data;
-    
-    switch (type) {
-        case 'SKIP_WAITING':
-            self.skipWaiting();
-            break;
-            
-        case 'CACHE_TRANSLATION':
-            // Cache translation results for offline access
-            cacheTranslationResult(data);
-            break;
-            
-        case 'GET_CACHE_SIZE':
-            getCacheSize().then(size => {
-                event.ports[0].postMessage({ size });
-            });
-            break;
-            
-        default:
-            console.log('Service Worker: Unknown message type', type);
-    }
-});
-
-// Cache translation results
-async function cacheTranslationResult(data) {
-    try {
-        const cache = await caches.open(CACHE_NAME);
-        const response = new Response(JSON.stringify(data), {
-            headers: { 'Content-Type': 'application/json' }
-        });
-        await cache.put(`/translation/${data.id}`, response);
-        console.log('Service Worker: Translation result cached', data.id);
-    } catch (error) {
-        console.error('Service Worker: Failed to cache translation', error);
-    }
-}
-
-// Get total cache size
-async function getCacheSize() {
-    try {
-        const cacheNames = await caches.keys();
-        let totalSize = 0;
-        
-        for (const cacheName of cacheNames) {
-            const cache = await caches.open(cacheName);
-            const requests = await cache.keys();
-            
-            for (const request of requests) {
-                const response = await cache.match(request);
-                if (response) {
-                    const blob = await response.blob();
-                    totalSize += blob.size;
-                }
-            }
-        }
-        
-        return totalSize;
-    } catch (error) {
-        console.error('Service Worker: Failed to calculate cache size', error);
-        return 0;
-    }
-}
-
-// Periodic cleanup
-self.addEventListener('periodicsync', (event) => {
-    if (event.tag === 'cache-cleanup') {
-        event.waitUntil(cleanupOldCache());
-    }
-});
-
-// Clean up old cache entries
-async function cleanupOldCache() {
-    try {
-        const cache = await caches.open(CACHE_NAME);
-        const requests = await cache.keys();
-        const now = Date.now();
-        const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
-        
-        for (const request of requests) {
-            const response = await cache.match(request);
-            if (response) {
-                const dateHeader = response.headers.get('date');
-                if (dateHeader) {
-                    const responseDate = new Date(dateHeader).getTime();
-                    if (now - responseDate > maxAge) {
-                        await cache.delete(request);
-                        console.log('Service Worker: Cleaned up old cache entry', request.url);
-                    }
-                }
-            }
-        }
-    } catch (error) {
-        console.error('Service Worker: Cache cleanup failed', error);
-    }
-}
-
-console.log('Service Worker: Loaded v3.0.0');
+// Optional: Hỗ trợ thông báo khi có update (nâng cao)
+// self.addEventListener('message', event => {
+//     if (event.data === 'skipWaiting') {
+//         self.skipWaiting();
+//     }
+// });
