@@ -4,7 +4,7 @@ const AppState = {
     isPaused: false,
     files: [],
     config: {
-        sourceLanguage: 'ja',
+        sourceLanguage: 'en',
         targetLanguage: 'vi',
         safeMode: 'balanced',
         batchSize: 10,
@@ -51,7 +51,13 @@ const AppState = {
         const el = document.getElementById('status-text');
         el.textContent = text;
         el.className = 'status';
-        const colors = { success: '#10b981', error: '#ef4444', processing: '#f59e0b', info: '#94a3b8' };
+        const colors = {
+            success: '#10b981',
+            error: '#ef4444',
+            processing: '#f59e0b',
+            paused: '#38bdf8', // ✅ FIX: thêm màu paused
+            info: '#94a3b8'
+        };
         el.style.color = colors[type] || colors.info;
     },
 
@@ -131,7 +137,7 @@ function renderFileItem(fileObj) {
     item.innerHTML = `
         <span class="file-name">${escapeHtml(fileObj.name)}</span>
         <div class="file-actions">
-            <span class="status status-\( {fileObj.status}"> \){getStatusLabel(fileObj.status)}</span>
+            <span class="status status-${fileObj.status}">${getStatusLabel(fileObj.status)}</span>
             <button class="btn-icon btn-remove" onclick="removeFile('${fileObj.id}')" aria-label="Xóa file">
                 <i class="fas fa-trash"></i>
             </button>
@@ -243,7 +249,7 @@ function togglePause() {
         btn.innerHTML = '<i class="fas fa-pause"></i> Tạm Dừng';
         btn.classList.remove('btn-primary');
         btn.classList.add('btn-pause');
-        startTranslation();
+        // ✅ FIX: KHÔNG gọi lại startTranslation()
     }
 }
 
@@ -267,7 +273,6 @@ function clearAll() {
 document.addEventListener('DOMContentLoaded', () => {
     AppState.load();
 
-    // FIX LỖI Logger is not defined: Định nghĩa Logger fallback nếu autotrans.js chưa load
     if (typeof Logger === 'undefined') {
         window.Logger = {
             info: (msg) => console.log('[INFO]', msg),
@@ -277,7 +282,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // LivePreview fallback (nếu autotrans.js gọi trước khi script.js load)
     if (typeof LivePreview === 'undefined') {
         window.LivePreview = {
             addTranslation: () => {},
@@ -285,7 +289,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // API Key
     document.getElementById('save-key').addEventListener('click', () => {
         const key = document.getElementById('api-key-input').value.trim();
         if (!key) {
@@ -309,7 +312,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Config
     document.querySelectorAll('select, input[type="checkbox"], input[type="number"]').forEach(el => {
         el.addEventListener('change', () => {
             const id = el.id;
@@ -325,7 +327,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Upload
     document.getElementById('select-files').addEventListener('click', () => document.getElementById('file-input').click());
     document.getElementById('file-input').addEventListener('change', e => handleFiles(e.target.files));
 
@@ -362,12 +363,10 @@ document.addEventListener('DOMContentLoaded', () => {
         handleFiles(e);
     });
 
-    // Controls
     document.getElementById('start-translation').addEventListener('click', startTranslation);
     document.getElementById('pause-translation').addEventListener('click', togglePause);
     document.getElementById('clear-all').addEventListener('click', clearAll);
 
-    // PWA
     let deferredPrompt;
     window.addEventListener('beforeinstallprompt', e => {
         e.preventDefault();
@@ -386,7 +385,6 @@ document.addEventListener('DOMContentLoaded', () => {
         navigator.serviceWorker.register('sw.js').catch(() => {});
     }
 
-    // Hook realtime stats
     const statsProxy = new Proxy(AppState.stats, {
         set(target, prop, value) {
             target[prop] = value;
