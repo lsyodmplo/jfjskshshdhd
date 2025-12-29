@@ -1,15 +1,14 @@
 {
   "name": "RPG Maker AI Translator ULTIMATE",
-  "short_name": "RPG Translator v5",
-  "description": "Công cụ dịch tự động RPG Maker mạnh mẽ nhất thế giới với bảo vệ plugin thông minh, live preview thời gian thực và giao diện cosmic siêu đẹp.",
+  "short_name": "RPG Translator v6",
+  "description": "Công cụ dịch tự động RPG Maker tốt nhất thế giới với bảo vệ plugin thông minh, live preview thời gian thực và giao diện cosmic hoàn hảo.",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#0a0e1a",
+  "background_color": "#0a0e17",
   "theme_color": "#00ffea",
   "orientation": "any",
-  "categories": ["productivity", "utilities", "games", "education"],
+  "categories": ["productivity", "utilities", "games"],
   "lang": "vi",
-  "dir": "ltr",
   "icons": [
     {
       "src": "icon-192.png",
@@ -38,11 +37,11 @@
   ],
   "screenshots": [
     {
-      "src": "screenshot-desktop-wide.png",
+      "src": "screenshot-desktop.png",
       "sizes": "1920x1080",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "Giao diện desktop với live preview và grid thông minh"
+      "label": "Giao diện desktop với live preview và grid cosmic"
     },
     {
       "src": "screenshot-mobile.png",
@@ -50,15 +49,6 @@
       "type": "image/png",
       "form_factor": "narrow",
       "label": "Giao diện mobile tối ưu, dễ sử dụng bằng một tay"
-    }
-  ],
-  "shortcuts": [
-    {
-      "name": "Bắt đầu dịch mới",
-      "short_name": "Dịch mới",
-      "description": "Mở ứng dụng và bắt đầu một phiên dịch mới",
-      "url": "./",
-      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

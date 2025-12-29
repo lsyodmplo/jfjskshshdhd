@@ -4,22 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#0f172a">
-    <meta name="description" content="RPG Maker AI Translator ULTIMATE v5.0 - Công cụ dịch tự động mạnh mẽ nhất với bảo vệ plugin hoàn hảo và giao diện cosmic siêu đẹp.">
-    
-    <title>RPG Maker AI Translator ULTIMATE v5.0</title>
+    <meta name="description" content="RPG Maker AI Translator ULTIMATE v6.0 - Công cụ dịch tự động RPG Maker tốt nhất thế giới với bảo vệ plugin thông minh và giao diện cosmic hoàn hảo.">
 
-    <!-- PWA -->
+    <title>RPG Maker AI Translator ULTIMATE v6.0</title>
+
+    <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌟</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌟</text></svg>">
     <link rel="apple-touch-icon" href="icon-192.png">
 
-    <!-- Fonts & Icons -->
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Icons -->
     <script src="https://kit.fontawesome.com/8f2b3d7e9a.js" crossorigin="anonymous"></script>
 
-    <!-- Main Style -->
+    <!-- Styles -->
     <link rel="stylesheet" href="style.css">
 
     <!-- Particles -->
@@ -30,59 +32,55 @@
     <!-- Particle Background -->
     <div id="tsparticles"></div>
 
-    <!-- Drag Overlay Toàn Màn Hình -->
-    <div id="drag-overlay" class="drag-overlay hidden" aria-hidden="true">
+    <!-- Drag Overlay -->
+    <div id="drag-overlay" class="drag-overlay" aria-hidden="true">
         <div class="overlay-content">
-            <i class="fas fa-cloud-upload-alt fa-5x" aria-hidden="true"></i>
-            <p class="overlay-text">Thả file JSON vào đây để tải lên</p>
+            <i class="fas fa-cloud-upload-alt fa-5x"></i>
+            <p>Thả file JSON vào đây</p>
         </div>
     </div>
 
+    <!-- Toast Container -->
+    <div id="toast-container" aria-live="polite"></div>
+
     <!-- Main App -->
     <div class="app-container">
-        <!-- Header -->
         <header class="header">
-            <div class="header-content">
+            <div class="header-title">
                 <h1 class="title">
                     <span class="gradient-text">RPG Maker AI Translator</span>
-                    <span class="version">ULTIMATE v5.0</span>
+                    <span class="version">ULTIMATE v6.0</span>
                 </h1>
-                <p class="subtitle">Live Preview • Plugin Protection • Cosmic Design</p>
+                <p class="subtitle">Live Preview • Plugin Protection • Cosmic UI</p>
             </div>
-            <div class="header-actions">
-                <button id="install-btn" class="btn-icon btn-install" title="Cài đặt ứng dụng" aria-label="Cài đặt PWA">
-                    <i class="fas fa-download"></i>
-                </button>
-            </div>
+            <button id="install-btn" class="btn-icon" title="Cài đặt ứng dụng" aria-label="Cài đặt PWA">
+                <i class="fas fa-download"></i>
+            </button>
         </header>
 
-        <!-- Main Grid -->
-        <main class="main-grid">
-            <!-- API Key Card -->
-            <section class="card api-card" id="api-card">
-                <h2><i class="fas fa-key" aria-hidden="true"></i> DeepSeek API Key</h2>
+        <main class="main-content">
+            <!-- API Key Section -->
+            <section class="card api-section">
+                <h2><i class="fas fa-key"></i> DeepSeek API Key</h2>
                 <div class="input-group">
-                    <input type="password" id="api-key-input" placeholder="Dán API key của bạn vào đây..." aria-label="API Key">
-                    <button id="toggle-key-visibility" class="btn-icon" aria-label="Hiện/Ẩn key">
-                        <i class="fas fa-eye"></i>
-                    </button>
+                    <input type="password" id="api-key-input" placeholder="Nhập API key của bạn..." autocomplete="off">
+                    <button id="toggle-key" class="btn-icon"><i class="fas fa-eye"></i></button>
                     <button id="save-key" class="btn-primary">Lưu Key</button>
                 </div>
                 <p class="help-text">
                     Lấy key miễn phí tại <a href="https://platform.deepseek.com" target="_blank" rel="noopener">platform.deepseek.com</a>
                 </p>
-                <div id="key-status" class="status-hidden" role="alert"></div>
+                <div id="key-status" class="status-message" role="alert"></div>
             </section>
 
-            <!-- Config Card -->
-            <section class="card config-card">
-                <h2><i class="fas fa-cogs" aria-hidden="true"></i> Cấu Hình Dịch</h2>
-                
-                <div class="form-row">
+            <!-- Configuration -->
+            <section class="card config-section">
+                <h2><i class="fas fa-cogs"></i> Cấu Hình Dịch</h2>
+                <div class="grid-2">
                     <div class="form-group">
                         <label for="source-lang">Ngôn ngữ nguồn</label>
-                        <select id="source-lang" aria-label="Ngôn ngữ nguồn">
-                            <option value="ja">Japanese (日本語)</option>
+                        <select id="source-lang">
+                            <option value="ja">Japanese</option>
                             <option value="en">English</option>
                             <option value="zh">Chinese</option>
                             <option value="ko">Korean</option>
@@ -90,8 +88,8 @@
                     </div>
                     <div class="form-group">
                         <label for="target-lang">Ngôn ngữ đích</label>
-                        <select id="target-lang" aria-label="Ngôn ngữ đích">
-                            <option value="vi">Vietnamese (Tiếng Việt)</option>
+                        <select id="target-lang">
+                            <option value="vi" selected>Vietnamese</option>
                             <option value="en">English</option>
                             <option value="zh">Chinese</option>
                             <option value="ko">Korean</option>
@@ -100,10 +98,10 @@
                     </div>
                 </div>
 
-                <div class="form-row">
+                <div class="grid-2">
                     <div class="form-group">
                         <label for="safe-mode">Safe Mode</label>
-                        <select id="safe-mode" aria-label="Safe Mode">
+                        <select id="safe-mode">
                             <option value="strict">Strict (An toàn nhất)</option>
                             <option value="balanced" selected>Balanced (Khuyến nghị)</option>
                             <option value="aggressive">Aggressive (Chuyên gia)</option>
@@ -111,13 +109,13 @@
                     </div>
                     <div class="form-group">
                         <label for="batch-size">Batch Size</label>
-                        <input type="number" id="batch-size" value="10" min="5" max="30" aria-label="Batch Size">
+                        <input type="number" id="batch-size" value="10" min="5" max="30">
                     </div>
                 </div>
 
-                <div class="checkbox-group">
+                <div class="checkbox-grid">
                     <label><input type="checkbox" id="translate-dialogue" checked> Dịch hội thoại</label>
-                    <label><input type="checkbox" id="translate-names" checked> Dịch tên (actor, item, skill...)</label>
+                    <label><input type="checkbox" id="translate-names" checked> Dịch tên</label>
                     <label><input type="checkbox" id="translate-descriptions" checked> Dịch mô tả</label>
                     <label><input type="checkbox" id="smart-filtering" checked> Smart Filtering</label>
                     <label><input type="checkbox" id="context-aware" checked> Context-Aware</label>
@@ -126,98 +124,92 @@
                 </div>
             </section>
 
-            <!-- Upload Card -->
-            <section class="card upload-card">
-                <h2><i class="fas fa-upload" aria-hidden="true"></i> Tải Lên File Dự Án</h2>
-                <div id="drop-zone" class="drop-zone" role="region" aria-label="Khu vực kéo thả file">
-                    <i class="fas fa-cloud-upload-alt upload-icon" aria-hidden="true"></i>
-                    <p class="drop-text">Kéo & thả file JSON vào đây</p>
-                    <p class="drop-subtext">hoặc</p>
+            <!-- Upload Section -->
+            <section class="card upload-section">
+                <h2><i class="fas fa-upload"></i> Tải Lên File Dự Án</h2>
+                <div id="drop-zone" class="drop-zone">
+                    <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                    <p>Kéo & thả file JSON vào đây</p>
+                    <p class="or-text">hoặc</p>
                     <button id="select-files" class="btn-secondary">Chọn File</button>
-                    <input type="file" id="file-input" multiple accept=".json" aria-hidden="true">
+                    <input type="file" id="file-input" multiple accept=".json" hidden>
                 </div>
                 <div id="file-list" class="file-list" role="list" aria-label="Danh sách file đã tải"></div>
             </section>
 
-            <!-- Stats Card (Desktop: bên phải, Mobile: dưới upload) -->
-            <section class="card stats-card">
-                <h2><i class="fas fa-chart-bar" aria-hidden="true"></i> Thống Kê & Tiến Độ</h2>
+            <!-- Stats Section -->
+            <section class="card stats-section">
+                <h2><i class="fas fa-chart-line"></i> Thống Kê</h2>
                 <div class="stats-grid">
-                    <div class="stat-item">
+                    <div class="stat">
                         <span class="label">File đã tải</span>
-                        <span id="files-count" class="value">0</span>
+                        <span id="files-count" class="number">0</span>
                     </div>
-                    <div class="stat-item">
+                    <div class="stat">
                         <span class="label">Đoạn đã dịch</span>
-                        <span id="translated-count" class="value">0</span>
+                        <span id="translated-count" class="number">0</span>
                     </div>
-                    <div class="stat-item">
+                    <div class="stat">
                         <span class="label">Chi phí ước tính</span>
-                        <span id="estimated-cost" class="value">$0.00</span>
+                        <span id="estimated-cost" class="number">$0.00</span>
                     </div>
-                    <div class="stat-item">
+                    <div class="stat">
                         <span class="label">Trạng thái</span>
-                        <span id="status-text" class="value">Sẵn sàng</span>
+                        <span id="status-text" class="status">Sẵn sàng</span>
                     </div>
                 </div>
-                <div class="progress-container">
+                <div class="progress-bar-container">
                     <div class="progress-bar">
-                        <div id="overall-progress" class="progress-fill" style="width: 0%"></div>
+                        <div id="overall-progress" class="progress-fill"></div>
                     </div>
-                    <span id="progress-text">0%</span>
+                    <span id="progress-percent">0%</span>
                 </div>
             </section>
 
-            <!-- Control Buttons (full width) -->
-            <div class="control-section">
-                <div class="control-buttons">
-                    <button id="start-translation" class="btn-start" disabled>
-                        <i class="fas fa-play"></i> Bắt Đầu Dịch
-                    </button>
-                    <button id="pause-translation" class="btn-pause" disabled>
-                        <i class="fas fa-pause"></i> Tạm Dừng
-                    </button>
-                    <button id="clear-all" class="btn-danger">
-                        <i class="fas fa-trash"></i> Xóa Tất Cả
-                    </button>
-                </div>
+            <!-- Control Buttons -->
+            <div class="control-buttons">
+                <button id="start-translation" class="btn-start" disabled>
+                    <i class="fas fa-play"></i> Bắt Đầu Dịch
+                </button>
+                <button id="pause-translation" class="btn-pause" disabled>
+                    <i class="fas fa-pause"></i> Tạm Dừng
+                </button>
+                <button id="clear-all" class="btn-clear">
+                    <i class="fas fa-trash"></i> Xóa Tất Cả
+                </button>
             </div>
 
-            <!-- Live Preview Card (full width, bottom) -->
-            <section class="card preview-card full-width">
-                <h2><i class="fas fa-eye" aria-hidden="true"></i> Live Preview - Thời Gian Thực</h2>
-                <div id="live-preview" class="live-preview" role="log" aria-live="polite">
-                    <p class="placeholder">Các bản dịch sẽ xuất hiện tại đây khi quá trình bắt đầu...</p>
+            <!-- Live Preview -->
+            <section class="card preview-section full-width">
+                <h2><i class="fas fa-eye"></i> Live Preview</h2>
+                <div id="live-preview" class="live-preview">
+                    <p class="placeholder">Bản dịch sẽ xuất hiện tại đây khi bắt đầu...</p>
                 </div>
             </section>
         </main>
 
-        <!-- Footer -->
         <footer class="footer">
-            <p>Made with <i class="fas fa-heart heartbeat" aria-hidden="true"></i> for the RPG Maker Community</p>
+            <p>Made with <i class="fas fa-heart heartbeat"></i> for the RPG Maker Community</p>
             <p>Translate safely, create amazingly! 🌟</p>
         </footer>
     </div>
-
-    <!-- Toast Container -->
-    <div id="toast-container" aria-live="assertive"></div>
 
     <!-- Scripts -->
     <script src="autotrans.js"></script>
     <script src="script.js"></script>
 
     <script>
-        // Particle config - nhẹ hơn trên mobile
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        // Particle background - nhẹ trên mobile
+        const isMobile = /Mobi|Android/i.test(navigator.userAgent);
         tsParticles.load("tsparticles", {
-            background: { color: { value: "transparent" } },
             fpsLimit: isMobile ? 30 : 60,
             particles: {
+                number: { value: isMobile ? 40 : 80 },
                 color: { value: ["#00ffea", "#00aaff", "#ff00ff", "#ffff00"] },
-                move: { enable: true, speed: isMobile ? 0.5 : 1, random: true },
-                number: { value: isMobile ? 40 : 80, density: { enable: true, area: 800 } },
-                opacity: { value: 0.6, animation: { enable: true, speed: 1, minimumValue: 0.1 } },
-                size: { value: { min: 1, max: isMobile ? 3 : 4 } }
+                shape: { type: "circle" },
+                opacity: { value: 0.6, animation: { enable: true, speed: 1 } },
+                size: { value: { min: 1, max: isMobile ? 3 : 4 } },
+                move: { enable: true, speed: isMobile ? 0.5 : 1, direction: "none", random: true }
             },
             detectRetina: true
         });

@@ -2,9 +2,9 @@
 const AppState = {
     apiKey: null,
     isPaused: false,
-    files: [],
+    files: [], // { id, name, data, status }
     config: {
-        sourceLanguage: 'ja',
+        sourceLanguage: 'en',
         targetLanguage: 'vi',
         safeMode: 'balanced',
         batchSize: 10,
@@ -26,7 +26,7 @@ const AppState = {
         if (stored) {
             this.apiKey = atob(stored);
             document.getElementById('api-key-input').value = this.apiKey;
-            showKeyStatus('✅ Key đã được lưu từ trước', 'success');
+            showStatus('key-status', 'Key đã được lưu', 'success');
             this.updateStartButton();
         }
     },
@@ -42,79 +42,72 @@ const AppState = {
         document.getElementById('estimated-cost').textContent = `$${this.stats.estimatedCost.toFixed(4)}`;
     },
 
-    updateProgress(percentage) {
-        document.getElementById('overall-progress').style.width = `${percentage}%`;
-        document.getElementById('progress-text').textContent = `${Math.round(percentage)}%`;
+    updateProgress(percent) {
+        document.getElementById('overall-progress').style.width = `${percent}%`;
+        document.getElementById('progress-percent').textContent = `${Math.round(percent)}%`;
     },
 
     setStatus(text, type = 'info') {
         const el = document.getElementById('status-text');
         el.textContent = text;
-        el.className = `value status-${type}`;
+        el.className = `status status-${type}`;
     },
 
     updateStartButton() {
         const btn = document.getElementById('start-translation');
-        const hasProcessing = this.files.some(f => f.status === 'processing');
-        btn.disabled = !this.apiKey || this.files.length === 0 || hasProcessing;
+        const processing = this.files.some(f => f.status === 'processing');
+        btn.disabled = !this.apiKey || this.files.length === 0 || processing;
     }
 };
 
-// ===== Toast =====
+// ===== Toast Notification =====
 function showToast(message, type = 'info') {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
     toast.className = 'toast';
-    toast.innerHTML = `
-        <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-triangle' : 'fa-info-circle'}"></i>
-        <span>${message}</span>
-    `;
+    toast.innerHTML = `<span>${message}</span>`;
     container.appendChild(toast);
-    setTimeout(() => toast.remove(), 3500);
-
-    if ('vibrate' in navigator) navigator.vibrate([50, 50, 50]);
+    setTimeout(() => toast.remove(), 3000);
 }
 
-// ===== Key Status =====
-function showKeyStatus(msg, type) {
-    const el = document.getElementById('key-status');
-    el.textContent = msg;
-    el.className = `status-${type}`;
+// ===== Status Message =====
+function showStatus(id, message, type) {
+    const el = document.getElementById(id);
+    el.textContent = message;
+    el.className = `status-message status-${type}`;
 }
 
 // ===== File Handling =====
-let fileIdCounter = 0;
+let fileCounter = 0;
 
 function handleFiles(source) {
     let files = [];
     if (source instanceof FileList) {
         files = Array.from(source);
-    } else if (source.dataTransfer && source.dataTransfer.files) {
+    } else if (source.dataTransfer?.files) {
         files = Array.from(source.dataTransfer.files);
     }
 
     if (files.length === 0) return;
 
-    files
-        .filter(file => file.name.toLowerCase().endsWith('.json'))
-        .forEach(file => {
-            const reader = new FileReader();
-            reader.onload = e => {
-                try {
-                    const data = JSON.parse(e.target.result);
-                    const id = `file_${fileIdCounter++}`;
-                    const fileObj = { id, name: file.name, data, status: 'pending' };
-                    AppState.files.push(fileObj);
-                    renderFileItem(fileObj);
-                    showToast(`✅ Đã tải: ${file.name}`, 'success');
-                    AppState.updateStartButton();
-                    AppState.updateStats();
-                } catch (err) {
-                    showToast(`❌ ${file.name}: JSON không hợp lệ`, 'error');
-                }
-            };
-            reader.readAsText(file);
-        });
+    files.filter(f => f.name.toLowerCase().endsWith('.json')).forEach(file => {
+        const reader = new FileReader();
+        reader.onload = e => {
+            try {
+                const data = JSON.parse(e.target.result);
+                const id = `file-${fileCounter++}`;
+                const fileObj = { id, name: file.name, data, status: 'pending' };
+                AppState.files.push(fileObj);
+                renderFileItem(fileObj);
+                showToast(`Đã tải ${file.name}`);
+                AppState.updateStartButton();
+                AppState.updateStats();
+            } catch {
+                showToast(`Lỗi: ${file.name} không phải JSON hợp lệ`, 'error');
+            }
+        };
+        reader.readAsText(file);
+    });
 }
 
 function renderFileItem(fileObj) {
@@ -123,20 +116,18 @@ function renderFileItem(fileObj) {
     item.className = `file-item ${fileObj.status}`;
     item.id = fileObj.id;
     item.innerHTML = `
-        <span class="file-name">${fileObj.name}</span>
-        <div class="file-actions">
-            <span class="status status-\( {fileObj.status}"> \){getStatusText(fileObj.status)}</span>
-            <button class="btn-icon btn-remove" onclick="removeFile('${fileObj.id}')" aria-label="Xóa">
-                <i class="fas fa-trash"></i>
-            </button>
+        <span>${fileObj.name}</span>
+        <div>
+            <span class="status status-\( {fileObj.status}"> \){getStatusLabel(fileObj.status)}</span>
+            <button class="btn-icon btn-remove" onclick="removeFile('${fileObj.id}')"><i class="fas fa-trash"></i></button>
         </div>
     `;
     list.appendChild(item);
 }
 
-function getStatusText(status) {
-    const map = { pending: 'Chờ', processing: 'Đang dịch', done: 'Hoàn thành', error: 'Lỗi' };
-    return map[status] || 'Chờ';
+function getStatusLabel(status) {
+    const labels = { pending: 'Chờ', processing: 'Đang dịch', done: 'Hoàn thành', error: 'Lỗi' };
+    return labels[status] || 'Chờ';
 }
 
 function updateFileStatus(id, status) {
@@ -144,23 +135,22 @@ function updateFileStatus(id, status) {
     if (item) {
         item.className = `file-item ${status}`;
         item.querySelector('.status').className = `status status-${status}`;
-        item.querySelector('.status').textContent = getStatusText(status);
+        item.querySelector('.status').textContent = getStatusLabel(status);
     }
 }
 
 function removeFile(id) {
     AppState.files = AppState.files.filter(f => f.id !== id);
     document.getElementById(id)?.remove();
-    showToast('🗑️ Đã xóa file', 'info');
+    showToast('Đã xóa file');
     AppState.updateStartButton();
     AppState.updateStats();
 }
 
-// ===== Translation & Controls =====
-async function startTranslation() { /* giữ nguyên như phiên bản trước */ 
-    // (copy từ phiên bản fix trước, phần này không lỗi)
+// ===== Translation =====
+async function startTranslation() {
     if (!AppState.apiKey) {
-        showToast('Vui lòng nhập và lưu API Key trước!', 'error');
+        showToast('Vui lòng lưu API Key trước', 'error');
         return;
     }
 
@@ -175,16 +165,16 @@ async function startTranslation() { /* giữ nguyên như phiên bản trước 
         if (file.status !== 'pending') continue;
 
         updateFileStatus(file.id, 'processing');
-        AppState.setStatus(`Đang dịch: ${file.name}`, 'processing');
+        AppState.setStatus(`Đang dịch ${file.name}...`, 'processing');
 
         try {
-            const translatedData = await AutoTransEngine.translateFile(file.data, file.name, AppState.config);
-            downloadFile(file.name, translatedData);
+            const translated = await AutoTransEngine.translateFile(file.data, file.name, AppState.config);
+            downloadTranslated(file.name, translated);
             updateFileStatus(file.id, 'done');
-            showToast(`✅ Hoàn thành: ${file.name}`, 'success');
+            showToast(`Hoàn thành ${file.name}`);
         } catch (err) {
             updateFileStatus(file.id, 'error');
-            showToast(`❌ Lỗi: ${err.message}`, 'error');
+            showToast(`Lỗi ${file.name}: ${err.message}`, 'error');
         }
 
         while (AppState.isPaused) {
@@ -193,14 +183,14 @@ async function startTranslation() { /* giữ nguyên như phiên bản trước 
         }
     }
 
-    AppState.setStatus('Hoàn thành!', 'success');
-    showToast('🎉 Xong tất cả!', 'success');
+    AppState.setStatus('Hoàn thành tất cả!', 'success');
+    showToast('Tất cả file đã được xử lý');
     startBtn.disabled = false;
     pauseBtn.disabled = true;
     AppState.updateStartButton();
 }
 
-function downloadFile(name, data) {
+function downloadTranslated(name, data) {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -213,40 +203,39 @@ function downloadFile(name, data) {
 function togglePause() {
     AppState.isPaused = !AppState.isPaused;
     const btn = document.getElementById('pause-translation');
-    btn.innerHTML = AppState.isPaused ? '<i class="fas fa-play"></i> Tiếp Tục' : '<i class="fas fa-pause"></i> Tạm Dừng';
-    btn.classList.toggle('btn-pause', !AppState.isPaused);
-    btn.classList.toggle('btn-primary', AppState.isPaused);
+    btn.innerHTML = AppState.isPaused ? '<i class="fas fa-play"></i> Tiếp tục' : '<i class="fas fa-pause"></i> Tạm dừng';
     if (!AppState.isPaused) startTranslation();
 }
 
 function clearAll() {
-    if (!confirm('Xóa hết file?')) return;
+    if (!confirm('Xóa tất cả file đã tải?')) return;
     AppState.files = [];
     AppState.stats = { textsTranslated: 0, estimatedCost: 0 };
     document.getElementById('file-list').innerHTML = '';
-    document.querySelector('#live-preview .placeholder').style.display = 'block';
+    document.querySelector('.placeholder').style.display = 'block';
     AppState.updateStats();
     AppState.updateProgress(0);
-    AppState.setStatus('Sẵn sàng', 'info');
+    AppState.setStatus('Sẵn sàng');
     AppState.updateStartButton();
+    showToast('Đã xóa tất cả');
 }
 
-// ===== DOM Loaded =====
+// ===== DOM Ready =====
 document.addEventListener('DOMContentLoaded', () => {
     AppState.load();
 
     // API Key
     document.getElementById('save-key').onclick = () => {
         const key = document.getElementById('api-key-input').value.trim();
-        if (!key) return showKeyStatus('❌ Nhập key đi!', 'error');
+        if (!key) return showStatus('key-status', 'Vui lòng nhập key', 'error');
         AppState.saveApiKey(key);
-        showKeyStatus('✅ Lưu key OK!', 'success');
+        showStatus('key-status', 'Đã lưu key thành công!', 'success');
         AppState.updateStartButton();
     };
 
-    document.getElementById('toggle-key-visibility').onclick = () => {
+    document.getElementById('toggle-key').onclick = () => {
         const input = document.getElementById('api-key-input');
-        const icon = document.querySelector('#toggle-key-visibility i');
+        const icon = document.getElementById('toggle-key').querySelector('i');
         if (input.type === 'password') {
             input.type = 'text';
             icon.classList.replace('fa-eye', 'fa-eye-slash');
@@ -256,18 +245,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Config update
-    document.querySelectorAll('#source-lang, #target-lang, #safe-mode, #batch-size, .checkbox-group input').forEach(el => {
-        el.addEventListener('change', () => {
+    // Config
+    document.querySelectorAll('select, input[type="checkbox"], input[type="number"]').forEach(el => {
+        el.onchange = () => {
             const id = el.id;
             if (el.type === 'checkbox') {
-                AppState.config[id.replace(/translate-/, 'translate').replace(/-/g, '_')] = el.checked;
+                const key = id.replace(/-/g, '_').replace('translate_', 'translate');
+                AppState.config[key] = el.checked;
             } else if (el.type === 'number') {
                 AppState.config.batchSize = parseInt(el.value) || 10;
             } else {
                 AppState.config[id.replace(/-/g, '_')] = el.value;
             }
-        });
+        };
     });
 
     // Upload
@@ -277,64 +267,54 @@ document.addEventListener('DOMContentLoaded', () => {
     const overlay = document.getElementById('drag-overlay');
     const dropZone = document.getElementById('drop-zone');
 
-    // Fix đúng cách kiểm tra types
-    const hasFiles = e => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+    const hasFiles = e => e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files');
 
     document.body.addEventListener('dragover', e => {
         e.preventDefault();
-        if (hasFiles(e)) {
-            overlay.classList.add('active');
-            dropZone.classList.add('dragover');
-        }
+        if (hasFiles(e)) overlay.classList.add('active');
     });
 
     document.body.addEventListener('dragleave', e => {
-        if (!e.relatedTarget) {
-            overlay.classList.remove('active');
-            dropZone.classList.remove('dragover');
-        }
+        if (!e.relatedTarget) overlay.classList.remove('active');
     });
 
     document.body.addEventListener('drop', e => {
         e.preventDefault();
         overlay.classList.remove('active');
-        dropZone.classList.remove('dragover');
         if (hasFiles(e)) handleFiles(e);
     });
 
+    dropZone.addEventListener('dragover', e => e.preventDefault());
     dropZone.addEventListener('drop', e => {
         e.preventDefault();
-        dropZone.classList.remove('dragover');
         handleFiles(e);
     });
 
-    // Buttons
+    // Controls
     document.getElementById('start-translation').onclick = startTranslation;
     document.getElementById('pause-translation').onclick = togglePause;
     document.getElementById('clear-all').onclick = clearAll;
 
-    // PWA & SW
+    // PWA
     let deferredPrompt;
     window.addEventListener('beforeinstallprompt', e => {
         e.preventDefault();
         deferredPrompt = e;
-        document.getElementById('install-btn').style.display = 'flex';
+        document.getElementById('install-btn').style.display = 'block';
     });
     document.getElementById('install-btn').onclick = () => deferredPrompt?.prompt();
 
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js').catch(console.error);
+        navigator.serviceWorker.register('sw.js').catch(() => {});
     }
 
-    // Hook cost realtime
-    Object.defineProperties(AppState.stats, {
-        estimatedCost: {
-            get: () => AppState.stats._cost || 0,
-            set: v => { AppState.stats._cost = v; AppState.updateStats(); }
-        },
-        textsTranslated: {
-            get: () => AppState.stats._texts || 0,
-            set: v => { AppState.stats._texts = v; AppState.updateStats(); }
+    // Hook realtime stats từ autotrans.js
+    const origStats = AppState.stats;
+    AppState.stats = new Proxy(origStats, {
+        set(target, prop, value) {
+            target[prop] = value;
+            if (prop === 'textsTranslated' || prop === 'estimatedCost') AppState.updateStats();
+            return true;
         }
     });
 });
