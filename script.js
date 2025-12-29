@@ -1,398 +1,337 @@
-// ===== App State =====
+// script.js
+// RPG Maker AI Translator ULTIMATE v4.0
+// Stable core – browser-safe – autotrans.js compatible
+
+// ==================================================
+// Global App State
+// ==================================================
 const AppState = {
-    apiKey: null,
-    isPaused: false,
-    files: [],
-    config: {
-        sourceLanguage: 'en',
-        targetLanguage: 'vi',
-        safeMode: 'balanced',
-        batchSize: 10,
-        translateDialogue: true,
-        translateNames: true,
-        translateDescriptions: true,
-        smartFiltering: true,
-        contextAware: true,
-        qualityCheck: true,
-        preserveFormatting: true
-    },
-    stats: {
-        textsTranslated: 0,
-        estimatedCost: 0
-    },
+  apiKey: null,
+  isPaused: false,
+  isTranslating: false,
 
-    load() {
-        const stored = localStorage.getItem('deepseek_api_key');
-        if (stored) {
-            this.apiKey = atob(stored);
-            document.getElementById('api-key-input').value = this.apiKey;
-            showStatus('key-status', '✅ Key đã được lưu', 'success');
-            this.updateStartButton();
-        }
-    },
+  files: [],
 
-    saveApiKey(key) {
-        this.apiKey = key.trim();
-        localStorage.setItem('deepseek_api_key', btoa(key));
-    },
+  stats: {
+    textsTranslated: 0,
+    estimatedCost: 0
+  },
 
-    updateStats() {
-        document.getElementById('files-count').textContent = this.files.length;
-        document.getElementById('translated-count').textContent = this.stats.textsTranslated;
-        document.getElementById('estimated-cost').textContent = `$${this.stats.estimatedCost.toFixed(4)}`;
-    },
-
-    updateProgress(percent) {
-        document.getElementById('overall-progress').style.width = `${percent}%`;
-        document.getElementById('progress-percent').textContent = `${Math.round(percent)}%`;
-    },
-
-    setStatus(text, type = 'info') {
-        const el = document.getElementById('status-text');
-        el.textContent = text;
-        el.className = 'status';
-        const colors = {
-            success: '#10b981',
-            error: '#ef4444',
-            processing: '#f59e0b',
-            paused: '#38bdf8', // ✅ FIX: thêm màu paused
-            info: '#94a3b8'
-        };
-        el.style.color = colors[type] || colors.info;
-    },
-
-    updateStartButton() {
-        const btn = document.getElementById('start-translation');
-        const processing = this.files.some(f => f.status === 'processing');
-        btn.disabled = !this.apiKey || this.files.length === 0 || processing;
-    }
+  config: {
+    sourceLanguage: 'ja',
+    targetLanguage: 'vi',
+    safeMode: 'balanced',
+    batchSize: 10,
+    preserveFormatting: true
+  }
 };
 
-// ===== Helper Functions =====
-function showStatus(id, message, type) {
-    const el = document.getElementById(id);
-    if (el) {
-        el.textContent = message;
-        el.className = `status-message ${type}`;
-    }
+// expose for autotrans.js
+window.AppState = AppState;
+
+// ==================================================
+// Logger (safe fallback)
+// ==================================================
+window.Logger = window.Logger || {
+  info: (...a) => console.info('[INFO]', ...a),
+  warn: (...a) => console.warn('[WARN]', ...a),
+  error: (...a) => console.error('[ERROR]', ...a)
+};
+
+// ==================================================
+// DOM Helpers
+// ==================================================
+const $ = (id) => document.getElementById(id);
+
+const DOM = {
+  apiKey: $('apiKey'),
+  apiStatus: $('apiStatus'),
+
+  startBtn: $('startBtn'),
+  pauseBtn: $('pauseBtn'),
+  clearBtn: $('clearBtn'),
+
+  selectFiles: $('selectFiles'),
+  fileInput: $('fileInput'),
+  dropZone: $('dropZone'),
+  fileList: $('fileList'),
+
+  sourceLang: $('sourceLang'),
+  targetLang: $('targetLang'),
+  safeMode: $('safeMode'),
+  batchSize: $('batchSize'),
+  preserveFormatting: $('preserveFormatting'),
+
+  previewStream: $('previewStream'),
+  previewSearch: $('previewSearch'),
+  toggleAutoScroll: $('toggleAutoScroll'),
+  exportBtn: $('exportBtn'),
+
+  batchProgress: $('batchProgress'),
+  batchMeta: $('batchMeta'),
+  textsTranslated: $('textsTranslated'),
+  estCost: $('estCost')
+};
+
+// ==================================================
+// API Key (local only)
+// ==================================================
+const API_KEY_STORAGE = 'rpg_ai_api';
+
+function saveApiKey(key) {
+  if (!key) {
+    localStorage.removeItem(API_KEY_STORAGE);
+    AppState.apiKey = null;
+    return;
+  }
+  localStorage.setItem(API_KEY_STORAGE, btoa(key));
+  AppState.apiKey = key;
 }
 
-function showToast(message, type = 'info') {
-    const container = document.getElementById('toast-container');
-    const toast = document.createElement('div');
-    toast.className = 'toast';
-    toast.innerHTML = `<span>${message}</span>`;
-    container.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
-
-    if ('vibrate' in navigator) navigator.vibrate([50, 50, 50]);
+function loadApiKey() {
+  const raw = localStorage.getItem(API_KEY_STORAGE);
+  if (!raw) return null;
+  try {
+    const key = atob(raw);
+    AppState.apiKey = key;
+    return key;
+  } catch {
+    return null;
+  }
 }
 
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
+// ==================================================
+// File Handling
+// ==================================================
+function handleFiles(fileList) {
+  const incoming = Array.from(fileList).filter(f => f.name.endsWith('.json'));
 
-// ===== File Handling =====
-let fileCounter = 0;
-
-function handleFiles(source) {
-    let files = [];
-    if (source instanceof FileList) {
-        files = Array.from(source);
-    } else if (source.dataTransfer?.files) {
-        files = Array.from(source.dataTransfer.files);
-    }
-
-    if (files.length === 0) return;
-
-    files.filter(f => f.name.toLowerCase().endsWith('.json')).forEach(file => {
-        const reader = new FileReader();
-        reader.onload = e => {
-            try {
-                const data = JSON.parse(e.target.result);
-                const id = `file-${fileCounter++}`;
-                const fileObj = { id, name: file.name, data, status: 'pending' };
-                AppState.files.push(fileObj);
-                renderFileItem(fileObj);
-                showToast(`✅ Đã tải ${file.name}`, 'success');
-                AppState.updateStartButton();
-                AppState.updateStats();
-            } catch (err) {
-                showToast(`❌ ${file.name}: JSON không hợp lệ`, 'error');
-            }
-        };
-        reader.readAsText(file);
+  incoming.forEach(file => {
+    if (AppState.files.some(x => x.name === file.name)) return;
+    AppState.files.push({
+      file,
+      name: file.name,
+      size: file.size
     });
+  });
+
+  renderFileList();
 }
 
-// FIX LỖI RENDER HOÀN TOÀN
-function renderFileItem(fileObj) {
-    const list = document.getElementById('file-list');
+function renderFileList() {
+  DOM.fileList.innerHTML = '';
+
+  if (AppState.files.length === 0) {
+    DOM.fileList.innerHTML =
+      `<div class="preview-empty"><p class="muted">No files selected</p></div>`;
+    return;
+  }
+
+  AppState.files.forEach((f, i) => {
+    const row = document.createElement('div');
+    row.className = 'file-item';
+
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = `${f.name} — ${f.size} bytes`;
+
+    const btn = document.createElement('button');
+    btn.className = 'btn small ghost';
+    btn.textContent = 'Remove';
+    btn.onclick = () => {
+      AppState.files.splice(i, 1);
+      renderFileList();
+    };
+
+    row.appendChild(meta);
+    row.appendChild(btn);
+    DOM.fileList.appendChild(row);
+  });
+}
+
+// ==================================================
+// Live Preview (hook cho autotrans.js)
+// ==================================================
+window.LivePreview = {
+  add(file, original, translated, status = 'safe') {
     const item = document.createElement('div');
-    item.className = `file-item ${fileObj.status}`;
-    item.id = fileObj.id;
+    item.className = `preview-item ${status}`;
 
     item.innerHTML = `
-        <span class="file-name">${escapeHtml(fileObj.name)}</span>
-        <div class="file-actions">
-            <span class="status status-${fileObj.status}">${getStatusLabel(fileObj.status)}</span>
-            <button class="btn-icon btn-remove" onclick="removeFile('${fileObj.id}')" aria-label="Xóa file">
-                <i class="fas fa-trash"></i>
-            </button>
-        </div>
+      <div class="meta">
+        <strong>${file}</strong>
+        <span class="muted">${new Date().toLocaleTimeString()}</span>
+      </div>
+      <div class="text-row">
+        <div class="original">${original || ''}</div>
+        <div class="translated">${translated || ''}</div>
+      </div>
     `;
 
-    list.appendChild(item);
-}
+    const empty = DOM.previewStream.querySelector('.preview-empty');
+    if (empty) empty.remove();
 
-function getStatusLabel(status) {
-    const labels = {
-        pending: 'Chờ',
-        processing: 'Đang dịch',
-        done: 'Hoàn thành',
-        error: 'Lỗi'
-    };
-    return labels[status] || 'Chờ';
-}
+    DOM.previewStream.appendChild(item);
 
-function updateFileStatus(id, status) {
-    const item = document.getElementById(id);
-    if (item) {
-        item.className = `file-item ${status}`;
-        const statusEl = item.querySelector('.status');
-        if (statusEl) {
-            statusEl.className = `status status-${status}`;
-            statusEl.textContent = getStatusLabel(status);
-        }
+    if (DOM.toggleAutoScroll.classList.contains('active')) {
+      DOM.previewStream.scrollTop = DOM.previewStream.scrollHeight;
     }
-}
+  }
+};
 
-function removeFile(id) {
-    AppState.files = AppState.files.filter(f => f.id !== id);
-    document.getElementById(id)?.remove();
-    showToast('🗑️ Đã xóa file', 'info');
-    AppState.updateStartButton();
-    AppState.updateStats();
-}
-
-// ===== Translation =====
+// ==================================================
+// Translation Runner
+// ==================================================
 async function startTranslation() {
-    if (!AppState.apiKey) {
-        showToast('Vui lòng lưu API Key trước', 'error');
-        return;
+  if (!AppState.apiKey) {
+    alert('Please enter API key.');
+    return;
+  }
+
+  if (AppState.files.length === 0) {
+    alert('No files selected.');
+    return;
+  }
+
+  const engine = window.AutoTransEngine;
+  if (!engine || typeof engine.translateFile !== 'function') {
+    alert('autotrans.js not loaded.');
+    Logger.error('AutoTransEngine missing');
+    return;
+  }
+
+  // sync config
+  AppState.config.sourceLanguage = DOM.sourceLang.value;
+  AppState.config.targetLanguage = DOM.targetLang.value;
+  AppState.config.safeMode = DOM.safeMode.value;
+  AppState.config.batchSize = Number(DOM.batchSize.value) || 10;
+  AppState.config.preserveFormatting = DOM.preserveFormatting.checked;
+
+  AppState.isPaused = false;
+  AppState.isTranslating = true;
+
+  DOM.startBtn.disabled = true;
+  DOM.pauseBtn.disabled = false;
+  DOM.pauseBtn.textContent = 'Pause';
+  DOM.apiStatus.textContent = 'Translating…';
+
+  DOM.batchProgress.value = 0;
+  DOM.batchProgress.max = AppState.files.length;
+  DOM.batchMeta.textContent = `0 / ${AppState.files.length}`;
+
+  for (let i = 0; i < AppState.files.length; i++) {
+    if (AppState.isPaused) break;
+
+    const f = AppState.files[i];
+    let json;
+
+    try {
+      json = JSON.parse(await f.file.text());
+    } catch {
+      LivePreview.add(f.name, '', 'Invalid JSON', 'blocked');
+      continue;
     }
 
-    const startBtn = document.getElementById('start-translation');
-    const pauseBtn = document.getElementById('pause-translation');
-    startBtn.disabled = true;
-    pauseBtn.disabled = false;
-    AppState.isPaused = false;
-    AppState.setStatus('Đang khởi động...', 'processing');
+    try {
+      const result = await engine.translateFile(json, f.name, AppState.config);
 
-    for (const file of AppState.files) {
-        if (file.status !== 'pending') continue;
+      LivePreview.add(
+        f.name,
+        'Original JSON',
+        'Translated successfully',
+        'safe'
+      );
 
-        updateFileStatus(file.id, 'processing');
-        AppState.setStatus(`Đang dịch ${file.name}...`, 'processing');
+      downloadResult(f.name, result);
 
-        try {
-            const translatedData = await AutoTransEngine.translateFile(
-                file.data,
-                file.name,
-                AppState.config
-            );
+      AppState.stats.textsTranslated++;
+      DOM.textsTranslated.textContent = AppState.stats.textsTranslated;
 
-            downloadTranslatedFile(file.name, translatedData);
-            updateFileStatus(file.id, 'done');
-            showToast(`✅ Hoàn thành: ${file.name}`, 'success');
-        } catch (err) {
-            console.error(err);
-            updateFileStatus(file.id, 'error');
-            showToast(`❌ Lỗi dịch ${file.name}`, 'error');
-        }
-
-        while (AppState.isPaused) {
-            AppState.setStatus('Đã tạm dừng', 'paused');
-            await new Promise(r => setTimeout(r, 500));
-        }
+    } catch (err) {
+      Logger.error(err);
+      LivePreview.add(f.name, '', err.message || 'Translation failed', 'blocked');
     }
 
-    AppState.setStatus('Hoàn thành toàn bộ!', 'success');
-    showToast('🎉 Tất cả file đã xử lý xong!', 'success');
-    startBtn.disabled = false;
-    pauseBtn.disabled = true;
-    AppState.updateStartButton();
+    DOM.batchProgress.value = i + 1;
+    DOM.batchMeta.textContent = `${i + 1} / ${AppState.files.length}`;
+  }
+
+  finishTranslation();
 }
 
-function downloadTranslatedFile(name, data) {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `[Translated] ${name}`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+function finishTranslation() {
+  AppState.isTranslating = false;
+  DOM.startBtn.disabled = false;
+  DOM.pauseBtn.disabled = true;
+  DOM.apiStatus.textContent = 'Idle';
 }
 
-function togglePause() {
-    AppState.isPaused = !AppState.isPaused;
-    const btn = document.getElementById('pause-translation');
-    if (AppState.isPaused) {
-        btn.innerHTML = '<i class="fas fa-play"></i> Tiếp Tục';
-        btn.classList.remove('btn-pause');
-        btn.classList.add('btn-primary');
-    } else {
-        btn.innerHTML = '<i class="fas fa-pause"></i> Tạm Dừng';
-        btn.classList.remove('btn-primary');
-        btn.classList.add('btn-pause');
-        // ✅ FIX: KHÔNG gọi lại startTranslation()
-    }
+// ==================================================
+// Download helper
+// ==================================================
+function downloadResult(filename, data) {
+  const blob = new Blob(
+    [JSON.stringify(data, null, 2)],
+    { type: 'application/json' }
+  );
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename.replace('.json', '.translated.json');
+  a.click();
+
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
-function clearAll() {
-    if (!confirm('Bạn có chắc muốn xóa tất cả file?')) return;
-
-    AppState.files = [];
-    AppState.stats.textsTranslated = 0;
-    AppState.stats.estimatedCost = 0;
-    document.getElementById('file-list').innerHTML = '';
-    const placeholder = document.querySelector('#live-preview .placeholder');
-    if (placeholder) placeholder.style.display = 'block';
-    AppState.updateStats();
-    AppState.updateProgress(0);
-    AppState.setStatus('Sẵn sàng', 'info');
-    AppState.updateStartButton();
-    showToast('🗑️ Đã xóa toàn bộ', 'info');
+// ==================================================
+// Event Wiring
+// ==================================================
+const savedKey = loadApiKey();
+if (savedKey) {
+  DOM.apiKey.value = '●'.repeat(Math.max(6, savedKey.length));
 }
 
-// ===== DOM Ready =====
-document.addEventListener('DOMContentLoaded', () => {
-    AppState.load();
-
-    if (typeof Logger === 'undefined') {
-        window.Logger = {
-            info: (msg) => console.log('[INFO]', msg),
-            warning: (msg) => console.warn('[WARNING]', msg),
-            error: (msg) => console.error('[ERROR]', msg),
-            success: (msg) => console.log('[SUCCESS]', msg)
-        };
-    }
-
-    if (typeof LivePreview === 'undefined') {
-        window.LivePreview = {
-            addTranslation: () => {},
-            showBatchProgress: () => {}
-        };
-    }
-
-    document.getElementById('save-key').addEventListener('click', () => {
-        const key = document.getElementById('api-key-input').value.trim();
-        if (!key) {
-            showStatus('key-status', '❌ Vui lòng nhập API key', 'error');
-            return;
-        }
-        AppState.saveApiKey(key);
-        showStatus('key-status', '✅ Đã lưu key thành công!', 'success');
-        AppState.updateStartButton();
-    });
-
-    document.getElementById('toggle-key').addEventListener('click', () => {
-        const input = document.getElementById('api-key-input');
-        const icon = document.getElementById('toggle-key').querySelector('i');
-        if (input.type === 'password') {
-            input.type = 'text';
-            icon.classList.replace('fa-eye', 'fa-eye-slash');
-        } else {
-            input.type = 'password';
-            icon.classList.replace('fa-eye-slash', 'fa-eye');
-        }
-    });
-
-    document.querySelectorAll('select, input[type="checkbox"], input[type="number"]').forEach(el => {
-        el.addEventListener('change', () => {
-            const id = el.id;
-            if (el.type === 'checkbox') {
-                const key = id.replace(/-/g, '_').replace('translate_', 'translate');
-                AppState.config[key] = el.checked;
-            } else if (el.type === 'number') {
-                AppState.config.batchSize = parseInt(el.value) || 10;
-            } else {
-                const key = id.replace(/-/g, '_');
-                if (key in AppState.config) AppState.config[key] = el.value;
-            }
-        });
-    });
-
-    document.getElementById('select-files').addEventListener('click', () => document.getElementById('file-input').click());
-    document.getElementById('file-input').addEventListener('change', e => handleFiles(e.target.files));
-
-    const overlay = document.getElementById('drag-overlay');
-    const dropZone = document.getElementById('drop-zone');
-
-    const hasFiles = e => e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files');
-
-    document.body.addEventListener('dragover', e => {
-        e.preventDefault();
-        if (hasFiles(e)) {
-            overlay.classList.add('active');
-            dropZone.classList.add('dragover');
-        }
-    });
-
-    document.body.addEventListener('dragleave', e => {
-        if (!e.relatedTarget) {
-            overlay.classList.remove('active');
-            dropZone.classList.remove('dragover');
-        }
-    });
-
-    document.body.addEventListener('drop', e => {
-        e.preventDefault();
-        overlay.classList.remove('active');
-        dropZone.classList.remove('dragover');
-        if (hasFiles(e)) handleFiles(e);
-    });
-
-    dropZone.addEventListener('dragover', e => e.preventDefault());
-    dropZone.addEventListener('drop', e => {
-        e.preventDefault();
-        handleFiles(e);
-    });
-
-    document.getElementById('start-translation').addEventListener('click', startTranslation);
-    document.getElementById('pause-translation').addEventListener('click', togglePause);
-    document.getElementById('clear-all').addEventListener('click', clearAll);
-
-    let deferredPrompt;
-    window.addEventListener('beforeinstallprompt', e => {
-        e.preventDefault();
-        deferredPrompt = e;
-        document.getElementById('install-btn').style.display = 'block';
-    });
-
-    document.getElementById('install-btn').addEventListener('click', () => {
-        if (deferredPrompt) {
-            deferredPrompt.prompt();
-            deferredPrompt = null;
-        }
-    });
-
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js').catch(() => {});
-    }
-
-    const statsProxy = new Proxy(AppState.stats, {
-        set(target, prop, value) {
-            target[prop] = value;
-            if (prop === 'textsTranslated' || prop === 'estimatedCost') {
-                AppState.updateStats();
-            }
-            return true;
-        }
-    });
-    AppState.stats = statsProxy;
+DOM.apiKey.addEventListener('input', (e) => {
+  const v = e.target.value.trim();
+  if (/^[●•]+$/.test(v)) return;
+  saveApiKey(v);
 });
+
+DOM.startBtn.onclick = startTranslation;
+
+DOM.pauseBtn.onclick = () => {
+  AppState.isPaused = !AppState.isPaused;
+  DOM.pauseBtn.textContent = AppState.isPaused ? 'Resume' : 'Pause';
+};
+
+DOM.clearBtn.onclick = () => {
+  AppState.files = [];
+  renderFileList();
+};
+
+DOM.selectFiles.onclick = () => DOM.fileInput.click();
+DOM.fileInput.onchange = e => handleFiles(e.target.files);
+
+['dragenter', 'dragover', 'drop'].forEach(evt => {
+  DOM.dropZone.addEventListener(evt, e => {
+    e.preventDefault();
+    if (evt === 'drop') handleFiles(e.dataTransfer.files);
+  });
+});
+
+DOM.previewSearch.addEventListener('input', () => {
+  const q = DOM.previewSearch.value.toLowerCase();
+  document.querySelectorAll('.preview-item').forEach(el => {
+    el.style.display = el.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+
+DOM.toggleAutoScroll.onclick = () => {
+  DOM.toggleAutoScroll.classList.toggle('active');
+};
+
+// ==================================================
+// Export (future-proof)
+// ==================================================
+export { startTranslation };

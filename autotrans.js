@@ -517,328 +517,238 @@ const TextExtractor = {
             });
         }
         return codes;
+// ===== SAFETY FALLBACKS =====
+window.ProgressManager = window.ProgressManager || {
+    updateStats() {},
+    updateFileProgress() {}
+};
+
+// ===== DeepSeek API Configuration =====
+const DeepSeekAPI = {
+    endpoint: 'https://api.deepseek.com/v1/chat/completions',
+    model: 'deepseek-chat',
+    
+    pricing: {
+        input: 0.14,
+        output: 0.28
     },
     
-    removeControlCodes(text) {
-        return text.replace(this.controlCodes, '{{CODE}}');
+    estimateTokens(text) {
+        return Math.ceil(text.length / 3);
     },
     
-    restoreControlCodes(translatedText, originalCodes) {
-        let result = translatedText;
-        originalCodes.forEach(codeObj => {
-            result = result.replace('{{CODE}}', codeObj.code);
+    async request(messages, temperature = 0.3) {
+        const response = await fetch(this.endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${AppState.apiKey}`
+            },
+            body: JSON.stringify({
+                model: this.model,
+                messages: messages,
+                temperature: temperature,
+                max_tokens: 4000,
+                stream: false
+            })
         });
-        return result;
+        
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.error?.message || `API Error: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.usage) {
+            const inputCost = (data.usage.prompt_tokens / 1000000) * this.pricing.input;
+            const outputCost = (data.usage.completion_tokens / 1000000) * this.pricing.output;
+            AppState.stats.estimatedCost += inputCost + outputCost;
+        }
+        
+        return data;
+    }
+};
+
+// ===== Text Extractor =====
+const TextExtractor = {
+    controlCodes: /\\[VNGPCI]\[\d+\]|\\[.!><^$]|\\[CFHK]/g,
+
+    isSafeToTranslateNote(note, config) {
+        if (!note || typeof note !== 'string') return false;
+        if (config.safeMode === 'strict') return false;
+
+        const dangerousPatterns = [
+            /<[^>]*>/g,
+            /\[[^\]]*\]/g,
+            /\{[^}]*\}/g,
+            /<(?:PassiveSkill|ActiveSkill|Skill|State|Item|Weapon|Armor|Enemy|Class):[^>]*>/gi,
+            /<(?:Custom|Script|Formula|Eval|Code):[^>]*>/gi,
+            /<(?:Damage|Effect|Cost|Requirement|Condition):[^>]*>/gi,
+            /<(?:Animation|Sound|Visual|Popup|Message):[^>]*>/gi,
+            /<(?:Mog|MOG)[^>]*>/gi,
+            /<(?:SRD|sumrndmdde)[^>]*>/gi,
+            /<(?:Galv|GALV)[^>]*>/gi,
+            /<(?:Hime|HIME)[^>]*>/gi,
+            /\$[a-zA-Z_][a-zA-Z0-9_.]*/g,
+            /this\.[a-zA-Z_][a-zA-Z0-9_.]*/g,
+            /function\s*\([^)]*\)/g,
+            /if\s*\([^)]*\)/g,
+            /for\s*\([^)]*\)/g,
+            /while\s*\([^)]*\)/g,
+            /switch\s*\([^)]*\)/g,
+            /(?:var|let|const|return|break|continue|case|default)\s/g,
+            /(?:===|!==|==|!=|<=|>=|&&|\|\||<<|>>)/g,
+            /plugin\s+command/gi,
+            /script\s+call/gi,
+            /eval\s*\(/gi,
+            /(?:img|audio|data|js|plugins)\/[^\s]*/gi,
+            /https?:\/\/[^\s]*/gi
+        ];
+
+        for (const pattern of dangerousPatterns) {
+            if (pattern.test(note)) return false;
+        }
+
+        return this.shouldTranslate(note, config) && this.isActualText(note);
+    },
+
+    looksLikeCode(text) {
+        const codePatterns = [
+            /[{}();]/g,
+            /\b(?:if|else|for|while|function|var|let|const|return)\b/g,
+            /[=!<>]=?/g,
+            /\+\+|--|&&|\|\|/g
+        ];
+
+        let score = 0;
+        for (const p of codePatterns) {
+            const m = text.match(p);
+            if (m) score += m.length;
+        }
+        return score > text.length * 0.2;
+    },
+
+    isActualText(text) {
+        if (!/[a-zA-Z\u3040-\u30ff\u4e00-\u9fff\uac00-\ud7af]/.test(text)) return false;
+        const letters = (text.match(/[a-zA-Z\u3040-\u30ff\u4e00-\u9fff\uac00-\ud7af]/g) || []).length;
+        return letters / text.length > 0.3;
+    },
+
+    shouldTranslate(text, config) {
+        if (!text || !text.trim()) return false;
+        if (/^[\d\s\W]*$/.test(text)) return false;
+        return true;
+    },
+
+    extractFromMap(data, config) {
+        const texts = [];
+        if (!data.events) return texts;
+
+        data.events.forEach((event, ei) => {
+            if (!event?.pages) return;
+            event.pages.forEach((page, pi) => {
+                page.list?.forEach((cmd, ci) => {
+                    if ([401, 405].includes(cmd.code) && cmd.parameters?.[0]) {
+                        const t = cmd.parameters[0];
+                        if (this.shouldTranslate(t, config)) {
+                            texts.push({
+                                type: 'dialogue',
+                                path: `events[${ei}].pages[${pi}].list[${ci}].parameters[0]`,
+                                original: t
+                            });
+                        }
+                    }
+                });
+            });
+        });
+        return texts;
     }
 };
 
 // ===== Translation Engine =====
 const TranslationEngine = {
-    languageNames: {
-        ja: 'Japanese',
-        en: 'English',
-        vi: 'Vietnamese',
-        zh: 'Chinese',
-        ko: 'Korean'
-    },
-    
     async translateBatch(texts, sourceLang, targetLang, config) {
-        if (texts.length === 0) return [];
-        
-        const sourceName = this.languageNames[sourceLang] || sourceLang;
-        const targetName = this.languageNames[targetLang] || targetLang;
-        
-        // Process texts
-        const processedTexts = texts.map(item => {
-            if (config.preserveFormatting) {
-                const codes = TextExtractor.extractControlCodes(item.original);
-                const cleaned = TextExtractor.removeControlCodes(item.original);
-                return { ...item, cleaned, codes };
-            }
-            return { ...item, cleaned: item.original, codes: [] };
-        });
-        
-        // Create prompt
-        const textList = processedTexts.map((item, i) => 
-            `${i + 1}. ${item.cleaned}`
-        ).join('\n');
-        
-        // Enhanced system prompt with context-aware features
-        let systemPrompt = `You are a professional translator specializing in video game localization for RPG Maker games.
+        if (!texts.length) return [];
+        const list = texts.map((t, i) => `${i + 1}. ${t.original}`).join('\n');
 
-CRITICAL TRANSLATION RULES:
-1. Translate from ${sourceName} to ${targetName} naturally and accurately
-2. Preserve the original meaning, tone, and character personality
-3. Use appropriate gaming terminology in ${targetName}
-4. Keep game-specific terms consistent (HP, MP, stats names)
-5. Maintain the emotional tone (serious, humorous, dramatic)
-6. For character dialogue, use natural conversational ${targetName}
-7. For item/skill names, keep them concise and impactful
-8. Preserve ALL {{CODE}} placeholders exactly as they appear
-9. Do NOT add any explanations, notes, or comments
-10. Return ONLY the numbered translations, one per line`;
+        const response = await DeepSeekAPI.request([
+            { role: 'system', content: `Translate from ${sourceLang} to ${targetLang}. Return numbered lines only.` },
+            { role: 'user', content: list }
+        ]);
 
-        // Add context-aware enhancements
-        if (config.contextAware) {
-            systemPrompt += `
-
-CONTEXT-AWARE ENHANCEMENTS:
-- Recognize RPG game context (fantasy, modern, sci-fi themes)
-- Adapt translation style based on content type (dialogue vs descriptions vs UI)
-- Use genre-appropriate vocabulary and expressions
-- Consider character relationships and social context in dialogue
-- Maintain consistency with RPG naming conventions`;
-        }
-
-        // Add quality check instructions
-        if (config.qualityCheck) {
-            systemPrompt += `
-
-QUALITY ASSURANCE:
-- Double-check translation accuracy and naturalness
-- Ensure no meaning is lost or added
-- Verify proper grammar and spelling
-- Maintain appropriate formality level
-- Check for cultural appropriateness`;
-        }
-
-        systemPrompt += `
-
-Context: These texts are from an RPG Maker game. Consider gaming conventions and player expectations when translating.`;
-
-        const userPrompt = `Translate these ${sourceName} texts to ${targetName}:
-
-${textList}
-
-Return the translations in the exact same numbered format (1., 2., 3...), one translation per line. No extra text.`;
-
-        try {
-            const response = await DeepSeekAPI.request([
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userPrompt }
-            ]);
-            
-            const translatedText = response.choices[0].message.content.trim();
-            const translations = this.parseTranslations(translatedText, processedTexts.length);
-            
-            // Restore control codes
-            return processedTexts.map((item, i) => {
-                let translation = translations[i] || item.original;
-                
-                if (config.preserveFormatting && item.codes.length > 0) {
-                    translation = TextExtractor.restoreControlCodes(translation, item.codes);
-                }
-                
-                return {
-                    ...item,
-                    translated: translation
-                };
-            });
-            
-        } catch (error) {
-            Logger.error(`❌ Translation error: ${error.message}`);
-            throw error;
-        }
-    },
-    
-    parseTranslations(text, expectedCount) {
-        const lines = text.split('\n').filter(line => line.trim());
-        const translations = [];
-        
-        for (const line of lines) {
-            // Match "1. Text" or "1) Text" or "1 - Text" etc
-            const match = line.match(/^\d+[\.\)\-\:]\s*(.+)$/);
-            if (match) {
-                translations.push(match[1].trim());
-            } else if (line.trim() && !/^\d+$/.test(line.trim())) {
-                translations.push(line.trim());
-            }
-        }
-        
-        // Ensure correct count
-        while (translations.length < expectedCount) {
-            translations.push('');
-        }
-        
-        return translations.slice(0, expectedCount);
+        const lines = response.choices[0].message.content.split('\n');
+        return texts.map((t, i) => ({
+            ...t,
+            translated: lines[i]?.replace(/^\d+[\.\)\-]\s*/, '') || t.original
+        }));
     }
 };
 
 // ===== Auto Translation Engine =====
 const AutoTransEngine = {
     async translateFile(jsonData, filename, config) {
-        Logger.info(`📋 Phân tích: ${filename}`);
-        
-        // Detect file type
-        const fileType = this.detectFileType(filename);
-        let texts = [];
-        
-        switch (fileType) {
-            case 'map':
-                texts = TextExtractor.extractFromMap(jsonData, config);
-                break;
-            case 'commonEvents':
-                texts = TextExtractor.extractFromCommonEvents(jsonData, config);
-                break;
-            case 'database':
-                texts = TextExtractor.extractFromDatabase(jsonData, config);
-                break;
-            default:
-                Logger.warning(`⚠ Không xác định: ${filename}`);
-                return jsonData;
+        const cfg = {
+            translateDialogue: true,
+            translateNames: true,
+            translateDescriptions: true,
+            smartFiltering: true,
+            skipTranslated: false,
+            contextAware: true,
+            qualityCheck: false,
+            ...config
+        };
+
+        let texts = TextExtractor.extractFromMap(jsonData, cfg);
+        if (!texts.length) return jsonData;
+
+        const batches = [];
+        for (let i = 0; i < texts.length; i += cfg.batchSize) {
+            batches.push(texts.slice(i, i + cfg.batchSize));
         }
-        
-        if (texts.length === 0) {
-            Logger.info('ℹ️ Không có văn bản cần dịch');
-            return jsonData;
-        }
-        
-        Logger.info(`📝 Tìm thấy ${texts.length} đoạn văn bản`);
-        
-        // Translate in batches
-        const batchSize = config.batchSize || 10;
-        const batches = this.createBatches(texts, batchSize);
-        let translatedTexts = [];
-        
+
+        let translated = [];
         for (let i = 0; i < batches.length; i++) {
             if (AppState.isPaused) break;
-            
-            const batch = batches[i];
-            Logger.info(`🔄 Batch ${i + 1}/${batches.length} (${batch.length} câu)`);
-            
-            try {
-                const translated = await TranslationEngine.translateBatch(
-                    batch,
-                    config.sourceLanguage,
-                    config.targetLanguage,
-                    config
-                );
-                
-                // Show live preview for each translation
-                if (typeof LivePreview !== 'undefined') {
-                    translated.forEach(item => {
-                        LivePreview.addTranslation(
-                            item.original,
-                            item.translated,
-                            filename,
-                            'translation'
-                        );
-                    });
-                    
-                    // Show batch progress
-                    LivePreview.showBatchProgress(i, batches.length, filename);
-                }
-                
-                translatedTexts.push(...translated);
-                AppState.stats.textsTranslated += batch.length;
-                ProgressManager.updateStats();
-                
-                // Update file progress
-                const fileProgress = ((i + 1) / batches.length) * 100;
-                ProgressManager.updateFileProgress(fileProgress);
-                
-                // Delay between batches
-                if (i < batches.length - 1) {
-                    await this.delay(500);
-                }
-                
-            } catch (error) {
-                Logger.error(`❌ Batch ${i + 1} lỗi: ${error.message}`);
-                
-                // Show error in live preview
-                if (typeof LivePreview !== 'undefined') {
+            const result = await TranslationEngine.translateBatch(
+                batches[i],
+                cfg.sourceLanguage,
+                cfg.targetLanguage,
+                cfg
+            );
+
+            result.forEach(r => {
+                if (window.LivePreview) {
                     LivePreview.addTranslation(
-                        `Batch ${i + 1} error`,
-                        `Lỗi batch ${i + 1}: ${error.message}`,
                         filename,
-                        'error'
+                        r.original,
+                        r.translated,
+                        'safe'
                     );
                 }
-                
-                // Keep originals on error
-                translatedTexts.push(...batch.map(t => ({ ...t, translated: t.original })));
+            });
+
+            translated.push(...result);
+            AppState.stats.textsTranslated += result.length;
+            ProgressManager.updateStats();
+        }
+
+        const out = JSON.parse(JSON.stringify(jsonData));
+        translated.forEach(t => {
+            const parts = t.path.split(/[\.\[\]]/).filter(Boolean);
+            let cur = out;
+            for (let i = 0; i < parts.length - 1; i++) {
+                cur = cur[isNaN(parts[i]) ? parts[i] : +parts[i]];
             }
-        }
-        
-        // Apply translations
-        const translatedData = this.applyTranslations(jsonData, translatedTexts);
-        
-        Logger.success(`✅ Hoàn thành: ${texts.length} đoạn`);
-        
-        return translatedData;
-    },
-    
-    detectFileType(filename) {
-        const lower = filename.toLowerCase();
-        
-        if (lower.startsWith('map')) return 'map';
-        if (lower === 'commonevents.json') return 'commonEvents';
-        
-        const dbFiles = [
-            'actors', 'classes', 'skills', 'items', 'weapons', 
-            'armors', 'enemies', 'troops', 'states', 'animations',
-            'tilesets', 'system'
-        ];
-        
-        if (dbFiles.some(db => lower.startsWith(db))) {
-            return 'database';
-        }
-        
-        return 'unknown';
-    },
-    
-    createBatches(texts, batchSize) {
-        const batches = [];
-        for (let i = 0; i < texts.length; i += batchSize) {
-            batches.push(texts.slice(i, i + batchSize));
-        }
-        return batches;
-    },
-    
-    applyTranslations(data, translatedTexts) {
-        const result = JSON.parse(JSON.stringify(data));
-        
-        translatedTexts.forEach(item => {
-            try {
-                this.setValueByPath(result, item.path, item.translated);
-            } catch (error) {
-                Logger.warning(`⚠ Không thể áp dụng: ${item.path}`);
-            }
+            cur[isNaN(parts.at(-1)) ? parts.at(-1) : +parts.at(-1)] = t.translated;
         });
-        
-        return result;
-    },
-    
-    setValueByPath(obj, path, value) {
-        // Parse path like "events[0].pages[1].list[2].parameters[0]"
-        const parts = path.split(/[\.\[\]]/).filter(Boolean);
-        
-        let current = obj;
-        for (let i = 0; i < parts.length - 1; i++) {
-            const key = isNaN(parts[i]) ? parts[i] : parseInt(parts[i]);
-            current = current[key];
-        }
-        
-        const lastKey = isNaN(parts[parts.length - 1]) ? 
-            parts[parts.length - 1] : 
-            parseInt(parts[parts.length - 1]);
-        
-        current[lastKey] = value;
-    },
-    
-    delay(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
+
+        Logger.info(`✅ Hoàn thành: ${filename}`);
+        return out;
     }
 };
 
-// ===== Export =====
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        DeepSeekAPI,
-        TextExtractor,
-        TranslationEngine,
-        AutoTransEngine
-    };
-}
+// ===== EXPORT =====
+window.AutoTransEngine = AutoTransEngine;
 
 Logger.info('⚡ Translation Engine loaded!');
