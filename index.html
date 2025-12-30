@@ -1,211 +1,451 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <title>RPG Maker AI Translator ULTIMATE v4.0</title>
-  <meta name="description" content="Client-side RPG Maker MV/MZ JSON Translator with AI, Live Preview and Safety Modes." />
-  <meta name="theme-color" content="#071026" />
-
-  <!-- PWA -->
-  <link rel="manifest" href="manifest.json" />
-
-  <!-- Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
-
-  <!-- Styles -->
-  <link rel="stylesheet" href="style.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>🌟 RPG Maker AI Translator ULTIMATE v4.0 - Live Preview Edition</title>
+    <meta name="description" content="Ultimate RPG Maker translation tool with LIVE PREVIEW, real-time translation monitoring, and universe-class UI powered by DeepSeek AI.">
+    <meta name="keywords" content="RPG Maker, live translation, real-time preview, DeepSeek AI, ultimate translator, MV, MZ">
+    <meta name="author" content="RPG Maker Universe Community">
+    
+    <!-- PWA Support -->
+    <meta name="theme-color" content="#6366f1">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Preload critical resources -->
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"></noscript>
+    <link rel="preload" href="style.css" as="style">
+    
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" onerror="this.onerror=null;this.href='data:text/css;base64,LyogRmFsbGJhY2sgZm9yIEZvbnQgQXdlc29tZSAqLw==';">
+    
+    <!-- Fallback for Font Awesome -->
+    <style>
+        .fas, .fab, .far {
+            font-family: Arial, sans-serif;
+            font-style: normal;
+            font-weight: normal;
+        }
+        .fa-language::before { content: "🌐"; }
+        .fa-robot::before { content: "🤖"; }
+        .fa-desktop::before { content: "💻"; }
+        .fa-mobile-alt::before { content: "📱"; }
+        .fa-tablet-alt::before { content: "📱"; }
+        .fa-crown::before { content: "👑"; }
+        .fa-eye::before { content: "👁️"; }
+        .fa-brain::before { content: "🧠"; }
+        .fa-rocket::before { content: "🚀"; }
+        .fa-shield-alt::before { content: "🛡️"; }
+        .fa-key::before { content: "🔑"; }
+        .fa-upload::before { content: "📤"; }
+        .fa-download::before { content: "📥"; }
+        .fa-play::before { content: "▶️"; }
+        .fa-pause::before { content: "⏸️"; }
+        .fa-stop::before { content: "⏹️"; }
+        .fa-check::before { content: "✅"; }
+        .fa-times::before { content: "❌"; }
+        .fa-warning::before { content: "⚠️"; }
+        .fa-info-circle::before { content: "ℹ️"; }
+    </style>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
+    
+    <!-- VIP Protection Styles -->
+    <style>
+        /* Hide main content by default until VIP auth */
+        #mainContainer {
+            display: block !important;
+            filter: none !important;
+            pointer-events: auto !important;
+        }
+        
+        /* VIP Modal should always be on top */
+        .vip-modal {
+            z-index: 999999 !important;
+        }
+        
+        /* Loading screen while VIP auth loads */
+        .vip-loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999998;
+        }
+        
+        .vip-loading-content {
+            text-align: center;
+            color: white;
+        }
+        
+        .vip-loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(99, 102, 241, 0.3);
+            border-top: 3px solid #6366f1;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
 </head>
-
 <body>
-<noscript>
-  <div style="padding:16px;background:#b00020;color:#fff;text-align:center">
-    Ứng dụng này cần bật JavaScript để hoạt động.
-  </div>
-</noscript>
 
-<div id="app" class="app-shell">
-
-  <!-- ================= Header ================= -->
-  <header class="app-header">
-    <div class="brand">
-      <div class="logo">⚛</div>
-      <div class="brand-text">
-        <h1>
-          RPG Maker AI Translator
-          <span class="version">ULTIMATE v4.0</span>
-        </h1>
-        <p class="tagline">Live Preview • Plugin Protection • Client-side AI</p>
-      </div>
+    <!-- Mobile Detection Notice -->
+    <div id="mobileNotice" class="mobile-notice" style="display: none;">
+        <i class="fas fa-mobile-alt"></i>
+        <span>Chế độ Mobile được kích hoạt</span>
     </div>
 
-    <div class="header-actions">
-      <span id="apiStatus" class="badge safe">Idle</span>
-      <button id="installBtn" class="btn small ghost" hidden>Install</button>
+    <div class="container" id="mainContainer">
+        <!-- Header - ULTIMATE EDITION -->
+        <header class="header ultimate-header">
+            <div class="cosmic-background">
+                <div class="stars"></div>
+                <div class="nebula"></div>
+            </div>
+            <div class="logo ultimate-logo">
+                <div class="logo-icon holographic">
+                    <i class="fas fa-language"></i>
+                    <div class="logo-sparkle">✨</div>
+                    <div class="logo-glow"></div>
+                </div>
+                <div class="logo-text">
+                    <h1 class="glitch-text">RPG Maker AI Translator</h1>
+                    <div class="logo-subtitle ultimate-badge">ULTIMATE v4.0</div>
+                    <div class="logo-tagline">Live Preview Edition</div>
+                </div>
+            </div>
+            <div class="subtitle ultimate-subtitle">
+                <i class="fas fa-robot ai-icon"></i>
+                <span>Powered by DeepSeek AI</span>
+                <div class="ai-indicator ultimate-ai">
+                    <div class="ai-pulse quantum"></div>
+                    <span>Quantum AI Active</span>
+                </div>
+            </div>
+            <div class="header-badges ultimate-badges">
+                <span class="badge badge-success holographic">
+                    <i class="fas fa-desktop"></i> Desktop
+                </span>
+                <span class="badge badge-info holographic">
+                    <i class="fas fa-mobile-alt"></i> Mobile
+                </span>
+                <span class="badge badge-warning holographic">
+                    <i class="fas fa-tablet-alt"></i> Tablet
+                </span>
+                <span class="badge badge-premium ultimate-premium">
+                    <i class="fas fa-crown"></i> ULTIMATE
+                </span>
+                <span class="badge badge-new live-preview">
+                    <i class="fas fa-eye"></i> LIVE PREVIEW
+                </span>
+            </div>
+            <div class="header-stats ultimate-stats">
+                <div class="stat-item cosmic">
+                    <i class="fas fa-brain"></i>
+                    <span>Quantum Filtering</span>
+                </div>
+                <div class="stat-item cosmic">
+                    <i class="fas fa-eye"></i>
+                    <span>Live Preview</span>
+                </div>
+                <div class="stat-item cosmic">
+                    <i class="fas fa-rocket"></i>
+                    <span>Warp Speed</span>
+                </div>
+                <div class="stat-item cosmic">
+                    <i class="fas fa-shield-alt"></i>
+                    <span>Quantum Secure</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Quick Start Guide -->
+        <section class="card quick-guide">
+            <div class="card-header">
+                <i class="fas fa-rocket"></i>
+                <h2>Hướng dẫn nhanh</h2>
+                <div class="guide-badges">
+                    <span class="mini-badge">3 bước</span>
+                    <span class="mini-badge">< 2 phút</span>
+                </div>
+                <button class="btn btn-small btn-collapse" id="toggleGuide">
+                    <i class="fas fa-chevron-up"></i>
+                </button>
+            </div>
+            <div class="card-body" id="guideContent">
+                <div class="guide-steps">
+                    <div class="guide-step">
+                        <div class="step-number">
+                            <i class="fas fa-key"></i>
+                            <span>1</span>
+                        </div>
+                        <div class="step-content">
+                            <h4>🔑 Nhập API Key</h4>
+                            <p>Lấy miễn phí tại <a href="https://platform.deepseek.com" target="_blank" rel="noopener">DeepSeek Platform</a></p>
+                            <div class="step-tip">
+                                <i class="fas fa-lightbulb"></i>
+                                <span>Tip: API key được lưu an toàn trong trình duyệt</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="guide-step">
+                        <div class="step-number">
+                            <i class="fas fa-upload"></i>
+                            <span>2</span>
+                        </div>
+                        <div class="step-content">
+                            <h4>📁 Chọn file JSON</h4>
+                            <p>Hỗ trợ Map, CommonEvents, Database files (MV/MZ)</p>
+                            <div class="step-features">
+                                <span class="feature-tag">Drag & Drop</span>
+                                <span class="feature-tag">Multi-select</span>
+                                <span class="feature-tag">Folder Upload</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="guide-step">
+                        <div class="step-number">
+                            <i class="fas fa-magic"></i>
+                            <span>3</span>
+                        </div>
+                        <div class="step-content">
+                            <h4>⚡ Cấu hình & Dịch</h4>
+                            <p>Smart filtering tự động loại bỏ plugin names, file paths</p>
+                            <div class="step-highlight">
+                                <i class="fas fa-brain"></i>
+                                <span>AI sẽ chỉ dịch nội dung quan trọng!</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="guide-features">
+                    <h4><i class="fas fa-star"></i> Tính năng nổi bật</h4>
+                    <div class="features-grid">
+                        <div class="feature-item">
+                            <i class="fas fa-filter"></i>
+                            <span>Smart Filtering</span>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fas fa-batch"></i>
+                            <span>Batch Processing</span>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fas fa-mobile-alt"></i>
+                            <span>Mobile Ready</span>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fas fa-download"></i>
+                            <span>Auto Download</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- API Configuration Section -->
+            <section class="card api-config">
+                <div class="card-header">
+                    <i class="fas fa-key"></i>
+                    <h2>Cấu hình API</h2>
+                    <span class="status-indicator" id="apiStatus">
+                        <i class="fas fa-circle"></i>
+                        <span>Chưa kết nối</span>
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label for="apiKey">
+                            <i class="fas fa-lock"></i>
+                            DeepSeek API Key
+                        </label>
+                        <div class="input-with-button">
+                            <input 
+                                type="password" 
+                                id="apiKey" 
+                                placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx"
+                                class="input-field"
+                                autocomplete="off"
+                            >
+                            <button type="button" class="btn-icon" id="toggleApiKey" title="Hiện/Ẩn">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button type="button" class="btn-icon btn-test" id="testApiKey" title="Test kết nối">
+                                <i class="fas fa-plug"></i>
+                            </button>
+                        </div>
+                        <small class="help-text">
+                            <i class="fas fa-info-circle"></i>
+                            Đăng ký miễn phí tại: <a href="https://platform.deepseek.com" target="_blank" rel="noopener">platform.deepseek.com</a>
+                            <br>
+                            <i class="fas fa-shield-alt"></i>
+                            API key được mã hóa và lưu trữ an toàn trong trình duyệt
+                        </small>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="sourceLanguage">
+                                <i class="fas fa-globe"></i>
+                                Ngôn ngữ nguồn
+                            </label>
+                            <select id="sourceLanguage" class="input-field">
+                                <option value="ja">🇯🇵 Tiếng Nhật</option>
+                                <option value="en">🇺🇸 Tiếng Anh</option>
+                                <option value="zh">🇨🇳 Tiếng Trung</option>
+                                <option value="ko">🇰🇷 Tiếng Hàn</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="targetLanguage">
+                                <i class="fas fa-flag"></i>
+                                Ngôn ngữ đích
+                            </label>
+                            <select id="targetLanguage" class="input-field">
+                                <option value="vi">🇻🇳 Tiếng Việt</option>
+                                <option value="en">🇺🇸 Tiếng Anh</option>
+                                <option value="zh">🇨🇳 Tiếng Trung</option>
+                                <option value="ja">🇯🇵 Tiếng Nhật</option>
+                                <option value="ko">🇰🇷 Tiếng Hàn</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="gameType">
+                            <i class="fas fa-gamepad"></i>
+                            Loại game
+                        </label>
+                        <select id="gameType" class="input-field">
+                            <option value="auto">🔍 Tự động phát hiện</option>
+                            <option value="mv">📦 RPG Maker MV</option>
+                            <option value="mz">🎮 RPG Maker MZ</option>
+                        </select>
+                    </div>
+                </div>
+            </section>
+
+            <!-- File Upload Section -->
+            <section class="card file-upload">
+                <div class="card-header">
+                    <i class="fas fa-upload"></i>
+                    <h2>Tải file lên</h2>
+                    <div class="upload-methods">
+                        <span class="method-badge">
+                            <i class="fas fa-mouse-pointer"></i> Click
+                        </span>
+                        <span class="method-badge">
+                            <i class="fas fa-hand-paper"></i> Drag & Drop
+                        </span>
+                        <span class="method-badge">
+                            <i class="fas fa-folder-open"></i> Browse
+                        </span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Upload Area -->
+                    <div class="upload-area" id="uploadArea">
+                        <div class="upload-content">
+                            <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                            <h3>Thả file vào đây hoặc click để chọn</h3>
+                            <p class="upload-subtext">Hỗ trợ file JSON của RPG Maker MV/MZ</p>
+                            
+                            <!-- Multiple Upload Buttons -->
+                            <div class="upload-buttons">
+                                <label for="fileInput" class="btn btn-primary btn-upload">
+                                    <i class="fas fa-file"></i>
+                                    Chọn file
+                                </label>
+                                <label for="folderInput" class="btn btn-secondary btn-upload">
+                                    <i class="fas fa-folder-open"></i>
+                                    Chọn thư mục
+                                </label>
+                            </div>
+                            
+                            <input 
+                                type="file" 
+                                id="fileInput" 
+                                accept=".json"
+                                multiple
+                                style="display: none;"
+                            >
+                            <input 
+                                type="file" 
+                                id="folderInput" 
+                                webkitdirectory
+                                directory
+                                multiple
+                                style="display: none;"
+                            >
+                            
+                            <div class="supported-files">
+                                <small>
+                                    <i class="fas fa-check-circle"></i>
+                                    Map001.json, CommonEvents.json, Actors.json, Items.json, Skills.json...
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- File List -->
+                    <div class="file-list-container" id="fileListContainer" style="display: none;">
+                        <div class="file-list-header">
+                            <h3>
+                                <i class="fas fa-list"></i>
+                                Danh sách file (<span id="fileCount">0</span>)
+                            </h3>
+                            <div class="file-list-actions">
+                                <button class="btn btn-small btn-secondary" id="clearFiles">
+                                    <i class="fas fa-trash"></i>
+                                    Xóa tất cả
+                                </button>
+                            </div>
+                        </div>
+                        <div class="file-list" id="fileList"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Action Buttons -->
+            <section class="action-section">
+                <button class="btn btn-primary btn-large btn-action" id="startTranslation" disabled>
+                    <i class="fas fa-play"></i>
+                    <span>Bắt đầu dịch</span>
+                </button>
+                <button class="btn btn-danger btn-large btn-action" id="stopTranslation" style="display: none;">
+                    <i class="fas fa-stop"></i>
+                    <span>Dừng lại</span>
+                </button>
+                <button class="btn btn-success btn-large btn-action" id="downloadAll" style="display: none;">
+                    <i class="fas fa-download"></i>
+                    <span>Tải xuống tất cả</span>
+                </button>
+            </section>
+        </main>
     </div>
-  </header>
 
-  <!-- ================= Main ================= -->
-  <main class="grid">
-
-    <!-- ===== Controls ===== -->
-    <section class="panel controls">
-      <h2>Configuration</h2>
-
-      <!-- API Key -->
-      <div class="form-row">
-        <label for="apiKey">DeepSeek API Key</label>
-        <input
-          id="apiKey"
-          type="password"
-          placeholder="sk-xxxxxxxx"
-          autocomplete="off"
-        />
-        <small class="muted">
-          API key chỉ lưu trên trình duyệt, không gửi đi nơi khác.
-        </small>
-      </div>
-
-      <!-- Languages -->
-      <div class="row-split">
-        <div class="form-row">
-          <label for="sourceLang">Source Language</label>
-          <select id="sourceLang">
-            <option value="ja">Japanese</option>
-            <option value="en">English</option>
-            <option value="zh">Chinese</option>
-            <option value="ko">Korean</option>
-          </select>
-        </div>
-
-        <div class="form-row">
-          <label for="targetLang">Target Language</label>
-          <select id="targetLang">
-            <option value="vi">Vietnamese</option>
-            <option value="en">English</option>
-            <option value="zh">Chinese</option>
-            <option value="ko">Korean</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Safety -->
-      <div class="form-row">
-        <label for="safeMode">Safety Mode</label>
-        <select id="safeMode">
-          <option value="strict">STRICT – Maximum safety</option>
-          <option value="balanced" selected>BALANCED – Recommended</option>
-          <option value="aggressive">AGGRESSIVE – Risky</option>
-        </select>
-      </div>
-
-      <!-- Batch -->
-      <div class="row-split">
-        <div class="form-row">
-          <label for="batchSize">Batch Size</label>
-          <input id="batchSize" type="number" min="1" max="50" value="10" />
-        </div>
-
-        <div class="form-row">
-          <label class="checkbox">
-            <input type="checkbox" id="preserveFormatting" checked />
-            Preserve formatting
-          </label>
-        </div>
-      </div>
-
-      <!-- Upload -->
-      <div id="dropZone" class="upload-area">
-        <div class="upload-inner">
-          <p class="big">Drag & Drop JSON files</p>
-          <p class="muted">Maps, Database, CommonEvents (MV / MZ)</p>
-          <button id="selectFiles" class="btn small">Select files</button>
-          <input id="fileInput" type="file" accept=".json" multiple hidden />
-        </div>
-      </div>
-
-      <div id="fileList" class="file-list"></div>
-
-      <!-- Actions -->
-      <div class="controls-actions">
-        <button id="startBtn" class="btn primary">Start</button>
-        <button id="pauseBtn" class="btn ghost" disabled>Pause</button>
-        <button id="clearBtn" class="btn hollow">Clear</button>
-      </div>
-
-      <!-- Safety Legend -->
-      <div class="safety-indicators">
-        <span class="badge protected">PROTECTED</span>
-        <span class="badge safe">SAFE</span>
-        <span class="badge risky">RISKY</span>
-        <span class="badge blocked">BLOCKED</span>
-      </div>
-    </section>
-
-    <!-- ===== Preview ===== -->
-    <section class="panel preview">
-      <div class="preview-toolbar">
-        <h2>Live Preview</h2>
-
-        <div class="preview-controls">
-          <input
-            id="previewSearch"
-            type="search"
-            placeholder="Search… (Ctrl + K)"
-          />
-          <button id="toggleAutoScroll" class="btn small ghost active">
-            Auto-scroll
-          </button>
-          <button id="exportBtn" class="btn small">Export</button>
-        </div>
-      </div>
-
-      <div id="previewStream" class="preview-stream">
-        <div class="preview-empty">
-          <p>No translations yet.</p>
-        </div>
-      </div>
-
-      <!-- Progress -->
-      <div class="progress-area">
-        <div class="progress-row">
-          <progress id="batchProgress" value="0" max="100"></progress>
-          <span id="batchMeta" class="text-muted">0 / 0</span>
-        </div>
-
-        <div class="stats-row">
-          <div class="stat">
-            <div id="textsTranslated" class="stat-value">0</div>
-            <div class="stat-label">Texts</div>
-          </div>
-          <div class="stat">
-            <div id="estCost" class="stat-value">$0.0000</div>
-            <div class="stat-label">Estimated cost</div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-  </main>
-
-  <!-- ================= Footer ================= -->
-  <footer class="app-footer">
-    <span class="text-muted">
-      © RPG Maker AI Translator ULTIMATE v4.0
-    </span>
-    <span class="text-muted">
-      Client-side • No tracking • Safe by design
-    </span>
-  </footer>
-
-</div>
-
-<!-- Scripts -->
-<!-- Scripts -->
-<script src="autotrans.js"></script>
-<script src="script.js"></script>
+    <!-- Scripts -->
+    <script src="script.js"></script>
+    <script src="autotrans.js"></script>
 </body>
 </html>
